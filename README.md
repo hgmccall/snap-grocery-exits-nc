@@ -7,6 +7,8 @@ with a fixed chronological split (train 2008-2018, validation 2019-2021, test 20
 
 Project rules, labels and feature-timing rules are in [`CLAUDE.md`](CLAUDE.md); the cleaning log is in
 [`docs/cleaning_log.md`](docs/cleaning_log.md). The D2 data note is [`docs/data_note_d2.md`](docs/data_note_d2.md).
+D3 model results are in [`docs/model_results.md`](docs/model_results.md) and
+[`docs/model_error_analysis.md`](docs/model_error_analysis.md).
 
 ## Repository structure
 
@@ -23,6 +25,7 @@ figures/    EDA plots (PNG); figures/data/ holds the CSV behind each plot
 src/prep/   pipeline scripts 00-06 in run order (00_download_acs ... 06_load_supabase),
             plus shared modules; reference/release_dates.csv has the ACS release dates
 src/eda/    plots and report scripts, and lookup.py (censors the test period)
+src/model/  D3 model evaluation: store-type baseline vs logistic regression vs gradient-boosted trees
 supabase/   schema.sql, the database schema
 .streamlit/ Streamlit config (config.toml); secrets.toml is gitignored
 .claude/    local Claude Code settings (settings.local.json is gitignored)
@@ -116,6 +119,10 @@ uv run python src/eda/data_dictionary.py       # docs/data_dictionary.md (from d
 # look up one store or chain; everything after 2021-12-31 is censored (lifting that needs a reason and is logged in docs/test_reservation_log.md)
 uv run python src/eda/lookup.py --name "earth fare"
 uv run python src/eda/lookup.py --record 740603
+
+# 5. D3 model evaluation: fit on train 2012-2018, score validation 2019-2021 (the test file is never read)
+uv run python src/model/01_evaluate.py         # docs/model_results.md/.csv, figures/model_pr_curves.png
+uv run python src/model/02_error_analysis.py   # docs/model_error_analysis.md/.csv (needs 01 first)
 ```
 
 The reserved test cohorts (2022-2024) are written to `data/processed/store_year_test.parquet`. That file stays local: it is
