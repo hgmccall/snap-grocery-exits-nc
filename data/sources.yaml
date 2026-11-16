@@ -231,14 +231,98 @@ datasets:
         retrieved: 2026-10-26
         retrieved_how: "local file modified date; manual export, exact export date not recorded"
   - id: bls_laus_county
-    title: "BLS Local Area Unemployment Statistics (LAUS), county annual averages (labor force, employment, unemployment, unemployment rate)"
+    title: "BLS Local Area Unemployment Statistics (LAUS), Labor Force Data by County, annual averages 2006-2022"
     publisher: "U.S. Bureau of Labor Statistics"
     landing_page: "https://www.bls.gov/lau/tables.htm"
     url: null
     access: manual_export
-    status: pending_manual_download   # files not yet placed; `files` is empty until they are, so download_raw.py has nothing to verify
-    citation: "U.S. Bureau of Labor Statistics. Local Area Unemployment Statistics, County Data, annual averages (files laucntyYY.xlsx). https://www.bls.gov/lau/tables.htm"
+    citation: "U.S. Bureau of Labor Statistics. Local Area Unemployment Statistics, County Data, Labor force data by county, annual averages (laucntyYY.xlsx). https://www.bls.gov/lau/tables.htm"
     used_by: "05c_new_features.py -> county_unemployment_rate (cohort t uses annual-average year t-2)"
-    note: "bls.gov answers scripted requests with HTTP 403 (checked 2026-11-16 with curl, two user agents), so the files must be downloaded in a browser. Timing: the annual average for year Y is published around April of Y+1, so cohort t uses year t-2. LIMITATION: LAUS is revised (annual benchmarking), and only the current revised series is available, so early-year values are not exactly what was published on the corresponding Jan 1."
-    manual_instructions: "In a browser open https://www.bls.gov/lau/tables.htm, section 'County Data', and for each year download the annual-average file laucntyYY.xlsx (YY = 06..22; cohorts 2012-2024 need 10..22, cohorts 2008-2011 need 06..09). Save them in data/raw/bls_laus/ keeping BLS's file names, then tell Claude so size and SHA-256 can be added here."
-    files: []
+    note: "MANUAL DOWNLOAD: bls.gov answers scripted requests with HTTP 403 (checked 2026-11-16), so these were downloaded in a browser on 2026-11-16 and can only be reproduced from the GitHub Release fallback (data-v2, to be published after the feature decision). Timing: the annual average for year Y is published around April of Y+1, so cohort t uses year t-2. LIMITATION: LAUS is revised, and only the current revised series is available (workbook footers are dated 2025-2026), so early-year values are not exactly what was published on the corresponding Jan 1."
+    manual_instructions: "In a browser open https://www.bls.gov/lau/tables.htm, County Data -> Labor force data by county, annual averages, download laucntyYY.xlsx for YY = 06..22, and save them in data/raw/bls_laus/ with BLS's names. Then run download_raw.py --check; a different SHA-256 means BLS has revised the series."
+    files:
+      - local: "bls_laus/laucnty06.xlsx"
+        size_bytes: 231399
+        sha256: 890603a5b4cda4511a4dec45a14a15ad4b038373c7ed6c21163bd7d7e44ce777
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty07.xlsx"
+        size_bytes: 233572
+        sha256: 84d270794ccea6db74d59d83e16a702875280c10b410bdd32ad1112dabece036
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty08.xlsx"
+        size_bytes: 234648
+        sha256: 2603e8bc27e188f583a7678cd5a81ac6adf6aab99c08f72194fe49717b5d7f3e
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty09.xlsx"
+        size_bytes: 235844
+        sha256: 93149a375e4cfcc64b134d6774a584fbc1797d9c9f0ee57be48154014e0c91fd
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty10.xlsx"
+        size_bytes: 236211
+        sha256: 37708f73d6cc6b0c60abfaa016abf2a733dae3f1e35873129fe4ab3c656db27c
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty11.xlsx"
+        size_bytes: 235881
+        sha256: e0d753c03fed62fbd3b64215b9ec466f67cfdbdd8e6a0cb59eb3a4045e5f4a34
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty12.xlsx"
+        size_bytes: 235383
+        sha256: 3751a42b4a3a85fad214a1a4829bac06ee9401f58b7e625199d6ecb590f09043
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty13.xlsx"
+        size_bytes: 235137
+        sha256: 9425c033000696fcb9ee5572d76a4b181cdba32a4951611f5e9fb006aef811cf
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty14.xlsx"
+        size_bytes: 234177
+        sha256: 1c44e4dea9068a332846d2b4781e21e3b471d1aa3648ca5fa4970600aca2c9d0
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty15.xlsx"
+        size_bytes: 234094
+        sha256: 664648657cb762c3d08000d9c7751601f7a63aade2bdd38e6578da2f06b0a85c
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date April 18, 2025"
+      - local: "bls_laus/laucnty16.xlsx"
+        size_bytes: 233806
+        sha256: c0b092ce596f41cb8a08eabacdd842b183bb54b2d730a96b9912e8632bdf324a
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date May 19, 2026"
+      - local: "bls_laus/laucnty17.xlsx"
+        size_bytes: 233081
+        sha256: 9d322016847535cd6a0bf5cb451b2767f2ce04b2cb99da8793341ee2663a17d6
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date May 19, 2026"
+      - local: "bls_laus/laucnty18.xlsx"
+        size_bytes: 232800
+        sha256: d354bb58f8726aca7d065922b8595edf0ad4c264c0dff61450f89bbcb22fadc5
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date May 19, 2026"
+      - local: "bls_laus/laucnty19.xlsx"
+        size_bytes: 232457
+        sha256: f732ffd9a8a842b42eb52f5c025e39811fc9836ce3d4057bdee016593ecccea4
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date May 19, 2026"
+      - local: "bls_laus/laucnty20.xlsx"
+        size_bytes: 233357
+        sha256: e7d35d1336a0b1f1eaa160c6b617ed8a8ea649928cd11cdf8bc65b1f91aca362
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date May 19, 2026"
+      - local: "bls_laus/laucnty21.xlsx"
+        size_bytes: 233088
+        sha256: fc1dc4416442acb985ed3972d512f240b3742834ef420b6f2afba14062c0ce3b
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date May 19, 2026"
+      - local: "bls_laus/laucnty22.xlsx"
+        size_bytes: 231994
+        sha256: d293e7b7193c23154c7e4a5b5fdfc6ea34e4ae1255e3871463343b5379ca0763
+        retrieved: 2026-11-16
+        retrieved_how: "manual browser download; workbook footer date May 19, 2026"
