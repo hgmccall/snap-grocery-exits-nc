@@ -123,11 +123,16 @@ train/validation and test panels. Each gets an assertion in the pipeline.
    Jan 1 of t (excluding the store itself). Source: cleaned retailer/spell tables.
 3. **`county_unemployment_rate`**: BLS LAUS county annual-average unemployment rate. Annual averages for year Y
    are released about April of Y+1, so **cohort t uses year t-2** (the t-1 annual average is not out by Jan 1 t).
-   Release timing and source file are recorded in `data/sources.yaml` and the data dictionary. **Limitation:**
-   LAUS is revised each year and we can only obtain the current revised series, so the values for early years are
-   not exactly what was published at the time. It **replaces the ACS `unemployment_rate`**, which is dropped from
-   the features, removing the 2012 gap. If bls.gov blocks scripted download, stop and ask for a hand download
-   (the file is still added to `sources.yaml`).
+   Files were downloaded by hand (bls.gov blocks scripts) from https://www.bls.gov/lau/tables.htm, County Data;
+   source and checksums are recorded in `data/sources.yaml`.
+   **Amendment (before any feature was built): it is an additional feature, not a replacement.** The tract-level
+   ACS `unemployment_rate` stays (median-imputed, as now). Reason: the county rate is constant within a
+   county-year, so it cannot rank stores within Mecklenburg, while the tract rate can.
+   **Limitations:** (a) the county rate varies mainly over time, so it may echo batch-heavy years (a calendar-year
+   proxy in effect, though the year itself is not a feature); (b) because cohort t uses year t-2, the 2020 COVID
+   spike enters only in the 2022 test cohort, so the model never sees it in training or validation; (c) LAUS is
+   revised and we only have the current revised series, so early-year values are not exactly what was published
+   on the corresponding Jan 1.
 4. **`fara_lilat_flag`**: USDA Food Access Research Atlas low-income / low-access flag (urban 1 mile / rural
    10 miles) for the store's tract, from the **latest Atlas release before Jan 1 of t**, with release dates taken
    from the Read Me sheets and recorded in `src/prep/reference/release_dates.csv`. Missing before the first
@@ -141,7 +146,7 @@ train/validation and test panels. Each gets an assertion in the pipeline.
 - Run each configuration with the **current trees settings** and also with the **same tuning grid** as the
   current model.
 - Report mean training-fold PR-AUC for: the current model (0.155); the model with all four features; and each
-  feature added alone (add-one ablation).
+  feature added alone to the current feature set (add-one ablation; the ACS `unemployment_rate` stays in every model).
 
 ### Decision rule (step 4)
 
