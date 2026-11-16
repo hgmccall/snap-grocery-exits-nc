@@ -66,6 +66,7 @@ def check_file(path: Path, entry: dict) -> str | None:
 
 def install(src, dest: Path, entry: dict) -> None:
     """Copy a byte stream to dest through a .part file, publishing it only if size and SHA-256 match."""
+    dest.parent.mkdir(parents=True, exist_ok=True)  # `local` may include a subfolder (bls_laus/)
     part = dest.with_name(dest.name + ".part")
     h, n = hashlib.sha256(), 0
     with open(part, "wb") as out:
@@ -186,11 +187,14 @@ def main() -> int:
                         names = {Path(n).name: n for n in z.namelist() if not n.endswith("/")}
                         for ds_id, es in still.items():
                             for e in es:
-                                if e["local"] not in names:
+                                # The release zip is FLAT (no folders), so match on the file name only; `local` may sit in a
+                                # subfolder of data/raw (the BLS files are in bls_laus/).
+                                base = Path(e["local"]).name
+                                if base not in names:
                                     errors.append(f"{e['local']}: not in the fallback zip")
                                     continue
                                 try:
-                                    with z.open(names[e["local"]]) as src:
+                                    with z.open(names[base]) as src:
                                         install(src, dest_dir / e["local"], e)
                                     source_of[e["local"]] = "GitHub Release fallback"
                                 except Problem as exc:
