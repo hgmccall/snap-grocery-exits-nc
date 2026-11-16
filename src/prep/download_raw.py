@@ -8,7 +8,7 @@ For every file listed in data/sources.yaml:
      never overwritten silently; delete it to re-fetch, or fix the manifest if the change is intended).
   2. If it is missing, it is downloaded from the official `url` (unzipping archive members as needed).
      If the official download fails, or serves bytes that do not match the manifest, it is taken from the
-     GitHub Release asset named in the manifest (`fallback`, tag data-v1) instead.
+     GitHub Release asset named in the manifest (`fallback`, tag data-v2) instead.
   3. Every file is then verified again. Any missing or mismatched file ends the run with a non-zero exit
      and a message saying what to do.
 

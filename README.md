@@ -41,7 +41,7 @@ Root files: `CLAUDE.md` (project rules), `pyproject.toml` and `uv.lock` (uv envi
 Raw data is not stored in git (`data/raw/` is gitignored). [`data/sources.yaml`](data/sources.yaml) is the manifest:
 for every file it records the official download URL, the local filename, size, SHA-256, retrieval date and a
 citation. [`src/prep/download_raw.py`](src/prep/download_raw.py) downloads missing files from the official URL,
-falls back to the GitHub Release asset `raw-data-v1.zip` (tag `data-v1`) if that fails or serves different bytes,
+falls back to the GitHub Release asset `raw-data-v2.zip` (tag `data-v2`) if that fails or serves different bytes,
 and verifies the SHA-256 of every file. It exits non-zero on any mismatch and never overwrites a file silently.
 
 | Dataset | File(s) in `data/raw/` | Source | Access |
@@ -72,18 +72,20 @@ Census API into `data/raw/acs/` and records each vintage's release date and sour
 
 ### Fallback release (maintainers)
 
-The QOL export has no stable URL and any official file can be re-issued upstream, so a `data-v1` release holds a flat
+The QOL export has no stable URL and any official file can be re-issued upstream, so a `data-v2` release (v1 lacked the BLS files) holds a flat
 zip of every file in the manifest. The repository must be pushed first (`git push -u origin main`); then, from PowerShell
 at the repository root:
 
 ```powershell
 # the zip goes to the temp folder, not the repo, so it cannot be committed by accident
-Get-ChildItem data\raw -File | Where-Object { $_.Name -ne '.gitkeep' } | Compress-Archive -DestinationPath "$env:TEMP\raw-data-v1.zip" -Force
-gh release create data-v1 "$env:TEMP\raw-data-v1.zip" --repo jrdn-sentosa/snap-grocery-exits-nc --title "Raw data v1" --notes "Raw inputs for the SNAP grocery exits project: a flat zip of the 21 files listed in data/sources.yaml. Verify with: uv run python src/prep/download_raw.py --check"
+# flat zip: the 17 BLS files from data\raw\bls_laus go at the zip root too (download_raw.py matches members by file name)
+$files = @(Get-ChildItem data\raw -File | Where-Object { $_.Name -ne '.gitkeep' }) + @(Get-ChildItem data\raw\bls_laus -File)
+$files | Compress-Archive -DestinationPath "$env:TEMP\raw-data-v2.zip" -Force
+gh release create data-v2 "$env:TEMP\raw-data-v2.zip" --repo jrdn-sentosa/snap-grocery-exits-nc --title "Raw data v2" --notes "Raw inputs for the SNAP grocery exits project: a flat zip of the 38 files listed in data/sources.yaml. Verify with: uv run python src/prep/download_raw.py --check"
 ```
 
 The release must be public for graders to download it without credentials. Offline, download the asset by hand and
-run `uv run python src/prep/download_raw.py --fallback-zip path\to\raw-data-v1.zip`.
+run `uv run python src/prep/download_raw.py --fallback-zip path\to\raw-data-v2.zip`.
 
 ## Reproduce
 
