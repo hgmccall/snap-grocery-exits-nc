@@ -102,3 +102,49 @@ Numbers are trees / logistic regression, D3 -> now.
   catch batch exits at a higher rate than non-batch exits (trees 24% vs 13%).
 - Mecklenburg (all flags in county): trees caught 4 -> 6 of 23; LR 4 -> 4. Stores older than 15 years: trees 0 -> 1
   of 52 caught, LR 0 of 52.
+
+## Feature additions (pre-registered)
+
+Written and committed **before any of these features was built or scored**, so the history shows the plan came
+before the results. The `d3` tag stays at f0fa11f; work is on `main`. Current selected model: gradient-boosted
+trees (lr 0.1, max_leaf_nodes 2, min_samples_leaf 100, l2 0, 300 iterations), fold PR-AUC 0.155, validation
+PR-AUC 0.149 (`exit_12m`).
+
+### Candidate features and timing rules
+
+All four use only information available before Jan 1 of cohort year t, computed by the same code for the
+train/validation and test panels. Each gets an assertion in the pipeline.
+
+1. **`n_bigstore_openings_2mi_prior12m`**: count of Supermarkets and Super Stores within 2 miles of the store
+   whose authorization began in [Jan 1 t-1, Dec 31 t-1] (strictly before Jan 1 t), excluding ownership changes
+   (an opening whose spell is the successor of an earlier record) and the store itself. Source: our cleaned
+   retailer/spell tables. A store authorized on Jan 1 t does not count.
+2. **`dist_nearest_bigstore_mi`**: distance in miles to the nearest Supermarket or Super Store authorized on
+   Jan 1 of t (excluding the store itself). Source: cleaned retailer/spell tables.
+3. **`county_unemployment_rate`**: BLS LAUS county annual-average unemployment rate. Annual averages for year Y
+   are released about April of Y+1, so **cohort t uses year t-2** (the t-1 annual average is not out by Jan 1 t).
+   Release timing and source file are recorded in `data/sources.yaml` and the data dictionary. **Limitation:**
+   LAUS is revised each year and we can only obtain the current revised series, so the values for early years are
+   not exactly what was published at the time. It **replaces the ACS `unemployment_rate`**, which is dropped from
+   the features, removing the 2012 gap. If bls.gov blocks scripted download, stop and ask for a hand download
+   (the file is still added to `sources.yaml`).
+4. **`fara_lilat_flag`**: USDA Food Access Research Atlas low-income / low-access flag (urban 1 mile / rural
+   10 miles) for the store's tract, from the **latest Atlas release before Jan 1 of t**, with release dates taken
+   from the Read Me sheets and recorded in `src/prep/reference/release_dates.csv`. Missing before the first
+   release. **No missing-value indicator** is added if it would act as a year marker (missingness is
+   year-determined).
+
+### Evaluation (training folds only)
+
+- Rolling folds inside 2012-2018 only; the same fold structure as the current model. Validation is **not**
+  scored until approved.
+- Run each configuration with the **current trees settings** and also with the **same tuning grid** as the
+  current model.
+- Report mean training-fold PR-AUC for: the current model (0.155); the model with all four features; and each
+  feature added alone (add-one ablation).
+
+### Decision rule (step 4)
+
+Adopt the new feature set only if its mean training-fold PR-AUC beats **0.155 by at least 0.005**. If it does,
+score validation once and adopt only if validation PR-AUC is **not lower than 0.149**. Otherwise keep the current
+model. Either way, the result is recorded here and the model is frozen. Test outcomes are never read.
