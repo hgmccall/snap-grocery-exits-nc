@@ -60,6 +60,35 @@ class StoreTypeRate:
         return np.column_stack([1 - p, p])
 
 
+class ImputeUnemployment:
+    """Median-impute unemployment_rate, fitted on the rows passed to fit (training years only).
+
+    unemployment_rate is missing for the whole 2012 cohort (no usable ACS table that year) and
+    for almost nothing else. A missing-value indicator, or a tree's native NaN branch, would
+    therefore mark "cohort 2012" -- a calendar-year proxy that project rules forbid. Imputing the
+    value removes the marker; the other columns keep their normal missing handling.
+    """
+    COL = "unemployment_rate"
+
+    def fit(self, X, y=None):
+        self.median_ = float(X[self.COL].median())
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+        X[self.COL] = X[self.COL].fillna(self.median_)
+        return X
+
+    def fit_transform(self, X, y=None):
+        return self.fit(X, y).transform(X)
+
+    def get_params(self, deep=True):
+        return {}
+
+    def set_params(self, **p):
+        return self
+
+
 def make_logreg(C):
     log_cols = [c for c in NUMERIC if c in SKEWED]
     lin_cols = [c for c in NUMERIC if c not in SKEWED]
@@ -72,19 +101,32 @@ def make_logreg(C):
         ("lin", num(), lin_cols),
         ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL),
     ])
-    return Pipeline([("pre", pre), ("lr", LogisticRegression(C=C, max_iter=5000))])
+    # unemployment_rate is imputed first, so SimpleImputer never sees a gap in it and (with
+    # add_indicator's default "missing-only") creates no indicator for it. The other indicators stay.
+    return Pipeline([("unemp", ImputeUnemployment()), ("pre", pre),
+                     ("lr", LogisticRegression(C=C, max_iter=5000))])
 
 
 def make_hgb(lr, leaves, min_leaf, l2):
-    return HistGradientBoostingClassifier(
+    # Same unemployment_rate imputation as the logistic regression: its NaN would otherwise let
+    # a tree isolate the 2012 cohort.
+    return Pipeline([("unemp", ImputeUnemployment()), ("hgb", HistGradientBoostingClassifier(
         learning_rate=lr, max_leaf_nodes=leaves, min_samples_leaf=min_leaf, l2_regularization=l2,
-        max_iter=300, early_stopping=False, categorical_features="from_dtype", random_state=SEED)
+        max_iter=300, early_stopping=False, categorical_features="from_dtype", random_state=SEED))])
 
 
+# D3 grids selected edge values (C=10; lr 0.03, leaves 8). D4 widens them past those edges.
+# C = 1e6 is "essentially unregularized".
+C_GRID = (0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 100.0, 1e6)
+# First D4 pass (lr 0.01-0.1, leaves 4-16, min_leaf 40-100, l2 0-1) put exit_12m at min_leaf 40 / l2 1.0
+# and exit_12m_strict at lr 0.01, leaves 4, min_leaf 100, l2 0 -- all edges -- so this is the one
+# further widening (decided from training-fold PR-AUC only; validation had not been scored).
+LR_GRID, LEAVES_GRID = (0.003, 0.01, 0.03, 0.1), (2, 4, 8, 16)
+MIN_LEAF_GRID, L2_GRID = (20, 40, 100, 200), (0.0, 1.0, 10.0)
 GRIDS = {
-    "Logistic regression": [dict(C=c) for c in (0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0)],
+    "Logistic regression": [dict(C=c) for c in C_GRID],
     "Gradient-boosted trees": [dict(lr=a, leaves=b, min_leaf=c, l2=d) for a, b, c, d in
-                               product((0.03, 0.1), (8, 16), (40, 100), (0.0, 1.0))],
+                               product(LR_GRID, LEAVES_GRID, MIN_LEAF_GRID, L2_GRID)],
 }
 BUILDERS = {"Logistic regression": lambda p: make_logreg(**p),
             "Gradient-boosted trees": lambda p: make_hgb(**p)}

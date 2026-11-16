@@ -9,7 +9,8 @@ Project rules, labels and feature-timing rules are in [`CLAUDE.md`](CLAUDE.md); 
 [`docs/cleaning_log.md`](docs/cleaning_log.md). The D2 data note is [`docs/data_note_d2.md`](docs/data_note_d2.md).
 D3 model results are in [`docs/model_results.md`](docs/model_results.md) and
 [`docs/model_error_analysis.md`](docs/model_error_analysis.md); the D3 model note is
-[`docs/model_note_d3.md`](docs/model_note_d3.md).
+[`docs/model_note_d3.md`](docs/model_note_d3.md). Post-D3 fixes and their effect on the results are in
+[`docs/changes_since_d3.md`](docs/changes_since_d3.md).
 
 ## Repository structure
 

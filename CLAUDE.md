@@ -2,9 +2,7 @@
 
 Data Science project. D1 (proposal) is approved; D2 (data preparation and EDA) and D3 (baseline and models) are done. We are now on **D4**.
 
-**D4 to-dos:**
-- [ ] Drop the `unemployment_rate` missing indicator from the model features.
-- [ ] Widen both tuning grids (logistic regression and gradient-boosted trees) in `src/model/01_evaluate.py`.
+**D4 status.** The two post-D3 fixes are done (unemployment_rate year-proxy indicator dropped and the column imputed for both models; tuning grids widened), recorded in `docs/changes_since_d3.md`. **The model choice is frozen after this rerun** (selected by mean rolling-fold PR-AUC inside 2012–2018). **Under that rule on `exit_12m`, gradient-boosted trees are now the selected model (fold 0.155 vs 0.147 for logistic regression); the D4 pipeline uses them with the settings found here: learning rate 0.1, `max_leaf_nodes` 2, `min_samples_leaf` 100, l2 0, 300 iterations, `unemployment_rate` median-imputed.** (On `exit_12m_strict` logistic regression remains ahead on folds, 0.066 vs 0.059.). Do not re-tune or re-select on validation. **The test years (2022–2024) are evaluated once, in D6.**
 
 ## Research question (approved, do not change)
 Using only information available on January 1 of each year, can we predict which SNAP-authorized grocery stores in North Carolina will lose SNAP authorization within the next 12 months more accurately than the historical exit rate for their store type?
