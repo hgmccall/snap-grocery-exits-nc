@@ -23,6 +23,10 @@ pct_snap_hh,float64,feature,33.6,0.0,0.0
 pct_renter,float64,feature,33.6,0.0,0.0
 pct_age_65_plus,float64,feature,33.6,0.0,0.0
 unemployment_rate,float64,feature,42.7,0.0,0.0
+n_bigstore_openings_2mi_prior12m,Int64,feature,0.0,0.0,0.0
+dist_nearest_bigstore_mi,float64,feature,0.0,0.0,0.0
+county_unemployment_rate,float64,feature,0.0,0.0,0.0
+fara_lilat_flag,float64,feature,52.2,0.0,0.0
 bias_pct_hispanic,float64,bias_,33.6,0.0,0.0
 bias_pct_white_nh,float64,bias_,33.6,0.0,0.0
 bias_pct_black_nh,float64,bias_,33.6,0.0,0.0

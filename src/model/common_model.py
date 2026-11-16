@@ -34,9 +34,17 @@ SEED = 2026
 CATEGORICAL = ["store_type"]
 
 
-def feature_columns() -> list[str]:
+# D4 candidate features (src/prep/05c_new_features.py; pre-registered in docs/changes_since_d3.md). They are marked `feature`
+# in the inventory, but the frozen model (01/02) must not silently change, so they are excluded unless asked for. They only
+# enter a model if the pre-registered decision rule adopts them (then this list is emptied in the commit that records it).
+CANDIDATE_FEATURES = ["n_bigstore_openings_2mi_prior12m", "dist_nearest_bigstore_mi", "county_unemployment_rate", "fara_lilat_flag"]
+
+
+def feature_columns(include_candidates: bool = False) -> list[str]:
     inv = pd.read_csv(DOCS / "column_inventory.csv")
     cols = inv.loc[inv["role"] == "feature", "column"].tolist()
+    if not include_candidates:
+        cols = [c for c in cols if c not in CANDIDATE_FEATURES]
     # Guard: nothing outcome-, year- or bias-related may slip in.
     bad = [c for c in cols if c == "year" or c.startswith(("qa_", "impact_", "exit_", "bias_"))]
     assert not bad, f"non-feature columns in feature list: {bad}"
@@ -55,7 +63,9 @@ def load_rows() -> pd.DataFrame:
     # stores in the same cohort year. This uses only Jan-1 information (no outcomes).
     df["median_hh_income"] = df.groupby("year")["median_hh_income"].rank(pct=True)
 
-    for c in feature_columns():
+    for c in feature_columns(include_candidates=True):
+        if c not in df.columns:
+            continue  # candidates are absent until 05c has run
         if c in CATEGORICAL:
             df[c] = df[c].astype("category")
         else:

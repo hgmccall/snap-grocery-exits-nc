@@ -153,3 +153,24 @@ train/validation and test panels. Each gets an assertion in the pipeline.
 Adopt the new feature set only if its mean training-fold PR-AUC beats **0.155 by at least 0.005**. If it does,
 score validation once and adopt only if validation PR-AUC is **not lower than 0.149**. Otherwise keep the current
 model. Either way, the result is recorded here and the model is frozen. Test outcomes are never read.
+
+### Result: training folds (exit_12m, trees, rolling folds inside 2012-2018; validation not scored, test not read)
+
+Source: `docs/feature_ablation_folds.md` (`src/model/03_feature_ablation.py`). 14,982 training store-years. Mean PR-AUC over the folds 2015-2018.
+Features built by `src/prep/05c_new_features.py` with timing assertions (county rate year t-2; Atlas release before Jan 1 t, so the flag is
+missing for cohorts 2012-2013 and median-imputed inside each fit, no indicator; big-store features recomputed independently on 200 store-years).
+The "current" row reproduces the 0.155 in this document (0.1549).
+
+| Feature set | Current settings | Δ vs current | Grid best | Δ vs current | Folds 2015 / 2016 / 2017 / 2018 (current settings) | Grid-best setting |
+|---|---|---|---|---|---|---|
+| current (frozen) | 0.155 | +0.000 | 0.155 | +0.000 | 0.097 / 0.189 / 0.199 / 0.134 | {'lr': 0.1, 'leaves': 2, 'min_leaf': 100, 'l2': 0.0} |
+| all four | 0.152 | -0.003 | 0.153 | -0.002 | 0.096 / 0.187 / 0.190 / 0.134 | {'lr': 0.03, 'leaves': 2, 'min_leaf': 40, 'l2': 0.0} |
+| + n_bigstore_openings_2mi_prior12m | 0.155 | -0.000 | 0.155 | -0.000 | 0.097 / 0.189 / 0.198 / 0.134 | {'lr': 0.1, 'leaves': 2, 'min_leaf': 100, 'l2': 0.0} |
+| + dist_nearest_bigstore_mi | 0.154 | -0.000 | 0.155 | +0.000 | 0.099 / 0.189 / 0.192 / 0.138 | {'lr': 0.1, 'leaves': 2, 'min_leaf': 100, 'l2': 10.0} |
+| + county_unemployment_rate | 0.152 | -0.003 | 0.153 | -0.002 | 0.096 / 0.189 / 0.194 / 0.130 | {'lr': 0.1, 'leaves': 2, 'min_leaf': 20, 'l2': 10.0} |
+| + fara_lilat_flag | 0.155 | -0.000 | 0.155 | -0.000 | 0.097 / 0.189 / 0.199 / 0.134 | {'lr': 0.1, 'leaves': 2, 'min_leaf': 100, 'l2': 0.0} |
+
+**Decision rule not met.** No feature set beats 0.155 by 0.005: the best row is +0.000 (grid best 0.1553 vs 0.1549), and all four features together
+are lower (-0.003 at the current settings, -0.002 with the grid). Under the pre-registered rule, **the current model is kept and the feature set is
+frozen** (the four candidates are excluded from `feature_columns()` by default in `common_model.py`, so `01/02` are unchanged). Validation was
+not scored for the new features. Nothing is loaded to Supabase.

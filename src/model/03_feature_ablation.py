@@ -1,0 +1,129 @@
+"""D4 feature additions: training-fold comparison (pre-registered in docs/changes_since_d3.md).
+
+Trees only (the selected model), label exit_12m, rolling-origin folds inside 2012-2018 (fit 2012..k-1, score year k, k = 2015-2018),
+exactly as in 01_evaluate.py. Configurations:
+  current        the frozen feature set (acs unemployment_rate median-imputed)
+  all four       current + the four candidates
+  +<feature>     current + that one candidate (add-one ablation); the ACS unemployment_rate stays in every model
+Each configuration is scored (a) with the current trees settings (lr 0.1, leaves 2, min_leaf 100, l2 0, 300 iterations) and
+(b) with the best setting of the same 144-point grid as 01_evaluate.py (mean fold PR-AUC, so the maximum of 144 noisy numbers).
+
+VALIDATION IS NOT SCORED and the test file is never read: only rows with year 2012-2018 enter anything here.
+Missing-value handling: `unemployment_rate` (missing for cohort 2012) and `fara_lilat_flag` (missing for cohorts 2012-2013, before the
+first Atlas release) are median-imputed with the median of the rows used to fit, so a tree's NaN branch cannot isolate those cohort
+years; no missing indicator is created for either. Other columns keep HistGradientBoosting's native missing handling.
+
+Writes docs/feature_ablation_folds.csv and docs/feature_ablation_folds.md.
+"""
+
+import importlib
+import sys
+from itertools import product
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.metrics import average_precision_score
+from sklearn.pipeline import Pipeline
+
+sys.path.insert(0, str(Path(__file__).parent))
+from common_model import CANDIDATE_FEATURES, DOCS, SEED, feature_columns, load_rows, rows_for_label  # noqa: E402
+
+ev = importlib.import_module("01_evaluate")
+FOLDS = (2015, 2016, 2017, 2018)
+LABEL = "exit_12m"
+CURRENT = dict(lr=0.1, leaves=2, min_leaf=100, l2=0.0)
+GRID = ev.GRIDS["Gradient-boosted trees"]
+IMPUTE = ("unemployment_rate", "fara_lilat_flag")
+
+
+class ImputeMedian:
+    """Median-impute the listed columns that are present, fitted on the rows passed to fit (never on later years)."""
+
+    def __init__(self, cols=IMPUTE):
+        self.cols = cols
+
+    def fit(self, X, y=None):
+        self.med_ = {c: float(X[c].median()) for c in self.cols if c in X}
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+        for c, m in self.med_.items():
+            X[c] = X[c].fillna(m)
+        return X
+
+    def fit_transform(self, X, y=None):
+        return self.fit(X, y).transform(X)
+
+    def get_params(self, deep=True):
+        return {"cols": self.cols}
+
+    def set_params(self, **p):
+        return self
+
+
+def make(params):
+    return Pipeline([("imp", ImputeMedian()), ("hgb", HistGradientBoostingClassifier(
+        learning_rate=params["lr"], max_leaf_nodes=params["leaves"], min_samples_leaf=params["min_leaf"], l2_regularization=params["l2"],
+        max_iter=300, early_stopping=False, categorical_features="from_dtype", random_state=SEED))])
+
+
+def fold_aps(train, cols, params):
+    aps = []
+    for k in FOLDS:
+        fit, te = train[train["year"] < k], train[train["year"] == k]
+        m = make(params).fit(fit[cols], fit[LABEL])
+        aps.append(average_precision_score(te[LABEL], m.predict_proba(te[cols])[:, 1]))
+    return aps
+
+
+def main():
+    df = load_rows()
+    d = rows_for_label(df, LABEL)
+    train = d[d["part"] == "train"].copy()           # 2012-2018 only; validation rows are never passed to a fit or a score
+    assert train["year"].between(2012, 2018).all()
+    print(f"{LABEL}: {len(train):,} training store-years, {int(train[LABEL].sum())} exits (counts of the training rows only)")
+    base = feature_columns()
+    assert not set(CANDIDATE_FEATURES) & set(base)
+    configs = {"current (frozen)": base, "all four": base + CANDIDATE_FEATURES}
+    configs.update({f"+ {c}": base + [c] for c in CANDIDATE_FEATURES})
+
+    rows = []
+    for name, cols in configs.items():
+        fixed = fold_aps(train, cols, CURRENT)
+        res = Parallel(n_jobs=-1)(delayed(fold_aps)(train, cols, p) for p in GRID)
+        means = np.array([np.mean(r) for r in res])
+        b = int(means.argmax())
+        rows.append({"config": name, "n_features": len(cols), "fixed_mean": np.mean(fixed), **{f"fixed_{k}": v for k, v in zip(FOLDS, fixed)},
+                     "grid_mean": means[b], **{f"grid_{k}": v for k, v in zip(FOLDS, res[b])}, "grid_best": GRID[b],
+                     "grid_median_over_grid": float(np.median(means))})
+        print(f"{name:<40} fixed {np.mean(fixed):.4f}   grid-best {means[b]:.4f} {GRID[b]}", flush=True)
+    out = pd.DataFrame(rows)
+    out.to_csv(DOCS / "feature_ablation_folds.csv", index=False)
+    write_md(out)
+
+
+def write_md(out):
+    f = lambda x: f"{x:.3f}"
+    cur = out.iloc[0]
+    L = ["# D4 feature additions: training-fold PR-AUC (exit_12m, rolling folds inside 2012-2018)", "",
+         "Generated by `src/model/03_feature_ablation.py`; do not edit by hand. Gradient-boosted trees, label `exit_12m`. Folds: fit on 2012..k-1, score year k, "
+         "k = 2015-2018; the table shows the mean over the four folds. **Validation was not scored and the test file was not read.** "
+         "Pre-registration and decision rule: `docs/changes_since_d3.md`.", "",
+         "*Current settings* = lr 0.1, leaves 2, min_leaf 100, l2 0, 300 iterations. *Grid best* = the best of the same 144-point grid as `01_evaluate.py` "
+         "(a maximum over 144 noisy fold means, so it is optimistic for every row alike). Add-one rows add one candidate to the current feature set; the ACS "
+         "`unemployment_rate` stays in every model.", "",
+         "| Feature set | Current settings | Δ vs current | Grid best | Δ vs current | Folds 2015 / 2016 / 2017 / 2018 (current settings) | Grid-best setting |", "|---|---|---|---|---|---|---|"]
+    for r in out.itertuples(index=False):
+        d = r._asdict()
+        folds = " / ".join(f(d[f"fixed_{k}"]) for k in FOLDS)
+        L.append(f"| {r.config} | {f(r.fixed_mean)} | {r.fixed_mean - cur.fixed_mean:+.3f} | {f(r.grid_mean)} | {r.grid_mean - cur.grid_mean:+.3f} | {folds} | {r.grid_best} |")
+    L += ["", "Decision rule (pre-registered): adopt only if the mean training-fold PR-AUC beats 0.155 by at least 0.005.", ""]
+    (DOCS / "feature_ablation_folds.md").write_text("\n".join(L), encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()

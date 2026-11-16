@@ -72,7 +72,7 @@ _LOG_COLS = ["script", "seq", "step", "step_type", "rule", "why", "rows_before",
 _COUNT_COLS = ["seq", "rows_before", "rows_after", "rows_affected"]
 # The scripts in run order. Re-running one invalidates the log rows of every later one (they describe its old output), so start_log drops
 # them too; running 01 therefore rewrites the whole log from scratch, and 06 refuses to load a log with a script missing.
-PIPELINE_ORDER = ["01_load", "02_clean", "03_spells", "04_panel", "05_features", "05b_location_gaps", "06_load_supabase"]
+PIPELINE_ORDER = ["01_load", "02_clean", "03_spells", "04_panel", "05_features", "05b_location_gaps", "06_load_supabase", "05c_new_features"]
 # What each step does, so the exported log can be filtered:
 #   filter    drops rows                       transform  rewrites or derives values (rows kept)
 #   flag      adds a marker / classification   audit      counts or checks only, nothing is changed
@@ -92,6 +92,9 @@ STEP_TYPES = {
     ("04_panel", "tract_2020"): "transform", ("04_panel", "ruca"): "transform", ("04_panel", "impact_dist"): "transform", ("04_panel", "split"): "build",
     ("05_features", "features_trainval"): "build", ("05_features", "features_test"): "build", ("05_features", "acs_sentinels"): "transform",
     ("05b_location_gaps", "location_gaps"): "build",
+    ("05c_new_features", "bigstore_features"): "build", ("05c_new_features", "bigstore_missing_coords"): "audit",
+    ("05c_new_features", "county_unemployment"): "transform", ("05c_new_features", "fara_flag"): "transform",
+    ("05c_new_features", "timing_assertions"): "audit", ("05c_new_features", "write_store_year"): "build",
     ("06_load_supabase", "retailers_cutoff_start"): "filter", ("06_load_supabase", "retailers_cutoff_end"): "transform",
 }
 STEP_TYPE_NAMES = ("filter", "transform", "flag", "audit", "build")
