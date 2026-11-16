@@ -1,6 +1,10 @@
 # Project: Predicting SNAP Grocery Store Exits in North Carolina (Charlotte–Mecklenburg focus)
 
-Data Science project. D1 (proposal) is approved. We are now on **D2: data preparation and EDA**.
+Data Science project. D1 (proposal) is approved; D2 (data preparation and EDA) and D3 (baseline and models) are done. We are now on **D4**.
+
+**D4 to-dos:**
+- [ ] Drop the `unemployment_rate` missing indicator from the model features.
+- [ ] Widen both tuning grids (logistic regression and gradient-boosted trees) in `src/model/01_evaluate.py`.
 
 ## Research question (approved, do not change)
 Using only information available on January 1 of each year, can we predict which SNAP-authorized grocery stores in North Carolina will lose SNAP authorization within the next 12 months more accurately than the historical exit rate for their store type?
