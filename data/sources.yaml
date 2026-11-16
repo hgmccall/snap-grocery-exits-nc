@@ -230,3 +230,15 @@ datasets:
         sha256: 524189cbdf33fac9935973385ede1c3c070f2ff5458f0f4d89da3aa23d82e4f7
         retrieved: 2026-10-26
         retrieved_how: "local file modified date; manual export, exact export date not recorded"
+  - id: bls_laus_county
+    title: "BLS Local Area Unemployment Statistics (LAUS), county annual averages (labor force, employment, unemployment, unemployment rate)"
+    publisher: "U.S. Bureau of Labor Statistics"
+    landing_page: "https://www.bls.gov/lau/tables.htm"
+    url: null
+    access: manual_export
+    status: pending_manual_download   # files not yet placed; `files` is empty until they are, so download_raw.py has nothing to verify
+    citation: "U.S. Bureau of Labor Statistics. Local Area Unemployment Statistics, County Data, annual averages (files laucntyYY.xlsx). https://www.bls.gov/lau/tables.htm"
+    used_by: "05c_new_features.py -> county_unemployment_rate (cohort t uses annual-average year t-2)"
+    note: "bls.gov answers scripted requests with HTTP 403 (checked 2026-11-16 with curl, two user agents), so the files must be downloaded in a browser. Timing: the annual average for year Y is published around April of Y+1, so cohort t uses year t-2. LIMITATION: LAUS is revised (annual benchmarking), and only the current revised series is available, so early-year values are not exactly what was published on the corresponding Jan 1."
+    manual_instructions: "In a browser open https://www.bls.gov/lau/tables.htm, section 'County Data', and for each year download the annual-average file laucntyYY.xlsx (YY = 06..22; cohorts 2012-2024 need 10..22, cohorts 2008-2011 need 06..09). Save them in data/raw/bls_laus/ keeping BLS's file names, then tell Claude so size and SHA-256 can be added here."
+    files: []
