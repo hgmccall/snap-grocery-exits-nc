@@ -12,10 +12,21 @@ D3 model results are in [`docs/model_results.md`](docs/model_results.md) and
 [`docs/model_note_d3.md`](docs/model_note_d3.md). Post-D3 fixes and their effect on the results are in
 [`docs/changes_since_d3.md`](docs/changes_since_d3.md).
 
+**D4 summary.** The model is frozen. Under the pre-set rule (mean rolling-fold PR-AUC inside 2012-2018, label `exit_12m`)
+**gradient-boosted trees** are selected (fold PR-AUC 0.155 vs 0.147 for logistic regression), with the settings found in that rerun:
+learning rate 0.1, `max_leaf_nodes` 2, `min_samples_leaf` 100, l2 0, 300 iterations, `unemployment_rate` median-imputed. Nothing was
+re-tuned or re-selected on validation. The final model is **refit on cohorts 2012-2021** and saved as **one fitted sklearn Pipeline,
+`StoreFeaturePrep` -> `HistGradientBoostingClassifier`** (`models/pipeline.joblib`, gitignored, rebuilt deterministically). The refit
+model cannot be evaluated on validation; its only evaluation is the single test run (2022-2024) in D6.
+- Model spec (inputs, units, outputs, tiers, versions): [`docs/model_spec_d4.md`](docs/model_spec_d4.md)
+- Fixed example inputs and expected outputs: [`docs/model_examples_d4.json`](docs/model_examples_d4.json)
+- Post-D3 changes and pre-registered D4 analyses: [`docs/changes_since_d3.md`](docs/changes_since_d3.md)
+
 ## Repository structure
 
 ```
 app/        Streamlit dashboard (streamlit_app.py) and Modal deployment (modal_app.py)
+models/     pipeline.joblib and metadata.json: the final fitted Pipeline (gitignored; built by src/model/09_final_refit.py)
 data/       sources.yaml: every raw file with its download URL and SHA-256 checksum
   raw/        downloaded source files (gitignored; fetched by src/prep/download_raw.py)
   interim/    cleaned retailer, spell and panel tables (gitignored; rebuilt by scripts)
@@ -27,7 +38,12 @@ figures/    EDA plots (PNG); figures/data/ holds the CSV behind each plot
 src/prep/   pipeline scripts 00-06 in run order (00_download_acs ... 06_load_supabase),
             plus shared modules; reference/release_dates.csv has the ACS release dates
 src/eda/    plots and report scripts, and lookup.py (censors the test period)
-src/model/  D3 model evaluation: store-type baseline vs logistic regression vs gradient-boosted trees
+src/model/  01-02 D3 evaluation (baseline vs logistic regression vs trees); 03-09 post-D3 analysis and the final refit, plus shared modules:
+              store_prep.py  StoreFeaturePrep, the input-preparation transformer (first step of the saved Pipeline; must be importable to unpickle it)
+              explain.py     exact per-feature contributions and top reasons for the trees model
+              impact.py      Jan-1 access-impact score (percentile ranks against a fixed reference)
+              serving.py     loads models/pipeline.joblib, scores store-years, runs the startup self-check (used by 09 and the D4 API)
+              common_model.py, spec_writer.py   shared evaluation helpers; writer of docs/model_spec_d4.md
 supabase/   schema.sql, the database schema
 .streamlit/ Streamlit config (config.toml); secrets.toml is gitignored
 .claude/    local Claude Code settings (settings.local.json is gitignored)
@@ -119,6 +135,7 @@ uv run python src/eda/exit_proximity.py
 uv run python src/eda/reentry_gap.py
 uv run python src/eda/location_gap_report.py
 uv run python src/eda/successor_revision3.py   # what the ownership-change rule revision 3 changed (needs data/reference/successor_overrides.csv)
+uv run python src/eda/feature_associations.py  # docs/feature_associations.md: univariate feature vs exit_12m, training rows 2012-2018 only
 uv run python src/eda/plots.py                 # figures/*.png and figures/data/*.csv (train and validation rows only)
 uv run python src/eda/data_dictionary.py       # docs/data_dictionary.md (from docs/column_inventory.csv, written by 05_features.py)
 
@@ -129,10 +146,32 @@ uv run python src/eda/lookup.py --record 740603
 # 5. D3 model evaluation: fit on train 2012-2018, score validation 2019-2021 (the test file is never read)
 uv run python src/model/01_evaluate.py         # docs/model_results.md/.csv, figures/model_pr_curves.png
 uv run python src/model/02_error_analysis.py   # docs/model_error_analysis.md/.csv (needs 01 first)
+
+# 6. Post-D3 analysis and final model (frozen trees; run in this order; needs 05d to have run)
+uv run python src/model/03_feature_ablation.py   # candidate-feature ablation on the rolling folds inside 2012-2018 (validation not scored)
+uv run python src/model/04_fairness_variant.py   # trees with vs without tract demographic features; group false-positive rates (report only)
+uv run python src/model/05_calibration.py        # calibration diagnosis of the validation predictions (docs/calibration.md)
+uv run python src/model/06_risk_tiers.py         # low/medium/high tier cutoffs from training base-rate multiples (docs/risk_tiers.json)
+uv run python src/model/07_explanations.py       # exact per-feature contributions and top-3 reasons, with consistency checks
+uv run python src/model/08_impact_score.py       # Jan-1 access-impact score and risk x impact ranking (docs/impact_reference.json)
+uv run python src/model/09_final_refit.py        # refit on 2012-2021 -> models/pipeline.joblib + models/metadata.json, spec and examples
 ```
 
+`models/` is gitignored and rebuilt deterministically by `09_final_refit.py` (fixed settings, `random_state` 2026), which also rewrites
+`docs/model_spec_d4.md`, `docs/model_examples_d4.json` and `docs/refit_tier_shares.md`, and asserts that the Pipeline reproduces a bare
+model's predictions and that a fresh process loads the bundle and passes the self-check.
+
 The reserved test cohorts (2022-2024) are written to `data/processed/store_year_test.parquet`. That file stays local: it is
-never loaded to Supabase and no outcome statistic, plot or summary is computed from it.
+never loaded to Supabase and the outcomes in it are never read: no outcome statistic, plot or summary is computed from it. The only
+access to it is `year` and `median_hh_income` (a Jan-1 feature), read by `09_final_refit.py` to build the income reference
+distributions for the 2012-2024 cohorts; `05d_context_columns.py` also adds the Jan-1 distance column to it without reading any label.
+Both are logged in [`docs/test_reservation_log.md`](docs/test_reservation_log.md). The test years are evaluated once, in D6.
+
+## D4 API (in progress)
+
+Placeholder, to be filled in by the API builder: Modal URL, `/docs` URL and run commands (local and deploy). The request and response
+contract, input validation rules and examples are in [`docs/model_spec_d4.md`](docs/model_spec_d4.md) and
+[`docs/model_examples_d4.json`](docs/model_examples_d4.json); the scoring code is `src/model/serving.py`.
 
 ## Dashboard (Supabase, Streamlit, Modal)
 
