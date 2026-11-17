@@ -44,16 +44,17 @@ def fmt(x, nd=4):
     return "null" if x is None or (isinstance(x, float) and np.isnan(x)) else (f"{x:.{nd}f}" if isinstance(x, float) else str(x))
 
 
-def write(meta, examples, shares, worst_share_diff, d, tr, va):
-    hgb = joblib.load(MODELS / "trees_exit12m_2012_2021.joblib")
+def write(meta, examples, shares, worst_share_diff, d, tr, va, pipe):
+    hgb = pipe[-1]
     F = meta["features"]
+    yrs = meta["income_reference_years"]
     used = sorted({int(p[0].nodes["feature_idx"][0]) for p in hgb._predictors})
     used_names = [F[i] for i in used]
     unused = [f for f in F if f not in used_names]
-    ref = json.loads((MODELS / "impact_reference.json").read_text())
+    ref = json.loads((DOCS / "impact_reference.json").read_text())
     s = meta["settings"]
     base = meta["baseline_log_odds"]
-    lo, hi = meta["low_cutoff"], meta["high_cutoff"]
+    lo, hi = meta["tier_cutoffs"]["low"], meta["tier_cutoffs"]["high"]
     sh = shares["refit model on all 2012-2021 (in-sample)"]
 
     L = ["# D4 model specification (frozen)", "",
@@ -66,33 +67,43 @@ def write(meta, examples, shares, worst_share_diff, d, tr, va):
          "- **The refit model can no longer be evaluated on validation** (validation is now inside its training data). Its only evaluation is the single D6 run on the reserved test cohorts "
          "2022-2024, which have never been read. Every performance number quoted in this spec comes from the **2012-2018 model** (same settings) scored on validation 2019-2021, and is evidence about the settings, "
          "not about this fitted model.",
-         "- Rebuild: `uv run python src/model/09_final_refit.py` (needs the prep scripts through `05d_context_columns.py`). The model file is deterministic: rebuilding gives identical `docs/model_examples_d4.json`.", "",
+         "- Rebuild: `uv run python src/model/09_final_refit.py` (needs the prep scripts through `05d_context_columns.py`). The fit is deterministic: rebuilding gives identical predictions and `docs/model_examples_d4.json` (only `created` in the metadata changes).", "",
          "## 2. Settings and artifacts", "",
          f"| Setting | Value |", "|---|---|",
          f"| learning_rate | {s['learning_rate']} |", f"| max_leaf_nodes | {s['max_leaf_nodes']} (every iteration is a stump) |", f"| min_samples_leaf | {s['min_samples_leaf']} |",
          f"| l2_regularization | {s['l2_regularization']} |", f"| max_iter | {s['max_iter']} (fitted; `n_iter_` = {hgb.n_iter_}) |", f"| early_stopping | {s['early_stopping']} |",
          f"| categorical_features | `from_dtype` (`store_type` is a pandas category) |", f"| random_state | {s['random_state']} |", f"| loss | log loss (default) |", "",
+         "**The deployable object is one fitted scikit-learn `Pipeline` (HW4 layout)**: `prep` = `store_prep.StoreFeaturePrep` (does all input preparation) -> `hgb` = the frozen `HistGradientBoostingClassifier`. "
+         "The D4 builder loads it and calls `predict_proba` on raw store-year rows; nothing about preparation is reimplemented.", "",
+         "```python", "import joblib",
+         "bundle = joblib.load('models/pipeline.joblib')    # needs src/model on the import path (store_prep.py) and scikit-learn==" + meta["sklearn_version"],
+         "pipe = bundle['pipeline']                  # Pipeline([('prep', StoreFeaturePrep()), ('hgb', HistGradientBoostingClassifier())])",
+         "p = pipe.predict_proba(raw_rows)[:, 1]     # raw_rows: DataFrame with `year` + the 20 inputs (income in dollars); extra columns are ignored", "```", "",
          "Artifacts in `models/` (gitignored; produced by the rebuild script):", "",
          "| File | Contents |", "|---|---|",
-         "| `trees_exit12m_2012_2021.joblib` | the bare fitted `HistGradientBoostingClassifier` (no custom classes; unpickle with scikit-learn alone; load only files you built yourself) |",
-         "| `bundle.json` | scikit-learn version, feature order, `store_type` categories, unemployment median, tier cutoffs, reference contributions, baseline |",
-         "| `impact_reference.json` | impact-score weights and the sorted pooled reference values (also committed as `docs/impact_reference.json`) |",
-         "| `examples.json` | the fixed examples below (also committed as `docs/model_examples_d4.json`) |", "",
-         "Scoring code to reuse (not re-implement): `src/model/serving.py` (`Bundle.score`, `Bundle.self_check`), `explain.py`, `impact.py`.", "",
+         "| `pipeline.joblib` | one joblib dict: `pipeline` (the fitted Pipeline), `metadata`, `reference_contributions` (centres the explanations), `impact_reference` (impact weights and rank tables), `examples` (the fixed examples in section 9) |",
+         "| `metadata.json` | the `metadata` dict as readable JSON: steps, created (UTC), sklearn_version, python/numpy/pandas versions, features, input columns, training_years, tier_cutoffs, settings, baseline log-odds, unemployment median, store_type categories, income-reference years and row counts |", "",
+         "Code the API must ship (all in `src/model/`, importable, deps numpy/pandas/scikit-learn only): **`store_prep.py`** (the pickle references `store_prep.StoreFeaturePrep` by module path, so it must be importable under that name), "
+         "`serving.py` (`Bundle.score`, `Bundle.self_check`), `explain.py`, `impact.py`. Only load a `pipeline.joblib` you built yourself (pickle).", "",
          "## 3. Features and raw inputs", "",
-         "The model takes exactly these 20 columns, in this order, all known on Jan 1 of the cohort year t (hard rule 2; definitions and timing in `docs/data_dictionary.md`). "
-         "`year`, every `qa_*`, `impact_*`, `exit_*`, `bias_*` column, raw end dates and the `context` column are **not** inputs. Calendar year is not an input in any form.", "",
+         "The pipeline takes a DataFrame with `year` (the cohort year t, used only to pick the income reference and dropped) plus these 20 columns, all known on Jan 1 of t (hard rule 2; definitions and timing in `docs/data_dictionary.md`); the trees see exactly the 20, in this order (`prep.get_feature_names_out()`). "
+         "Every `qa_*`, `impact_*`, `exit_*`, `bias_*` column, raw end dates and the `context` column are **not** model inputs (extra columns are ignored). Calendar year is not a model input in any form: it only selects the income reference.", "",
          "| # | Input | Raw source | Units / handling | Used by the 300 stumps |", "|---|---|---|---|---|"]
     for i, f in enumerate(F, 1):
         L.append(f"| {i} | `{f}` | {RAW[f][0]} | {RAW[f][1]} | {'yes' if f in used_names else 'no (never split on; still must be supplied)'} |")
     L += ["", f"The stumps split on {len(used_names)} of the 20 inputs; unused: {', '.join('`'+u+'`' for u in unused)}.", "",
-          "### Input preparation (done by `Bundle.prepare`)", "",
-          "1. **`median_hh_income` is a within-year percentile.** Nominal income drifts across ACS vintages, so the model sees the tract's income percentile among all grocery store-years of the same cohort year "
-          "(`pandas.DataFrame.groupby('year')['median_hh_income'].rank(pct=True)`, average ties; `serving.income_percentile_within_year`). The percentile must be computed over **every grocery store-year of that cohort**, "
-          "not over the rows being scored; a single store therefore needs its cohort's income distribution (for stores already in the Supabase `store_year` table, compute the rank over the table's rows of that year).",
+          "### Input preparation: `StoreFeaturePrep` (fit on 2012-2021, Jan-1 feature data only, no outcomes)", "",
+          f"1. **`median_hh_income` -> within-cohort-year percentile.** Nominal ACS dollars drift across vintages, so the transformer learns, per cohort year, the sorted distribution of tract median household income over every grocery store-year of that cohort, "
+          f"and replaces a store's dollars with its percentile in its own year's distribution (average-tie rank / n, identical to `groupby('year').rank(pct=True)`). References are stored for **every cohort year {yrs[0]}-{yrs[-1]}** "
+          f"(rows per year: {', '.join(f'{k}: {v:,}' for k, v in meta['income_reference_n'].items())}), so the API can score any of them from a single row. Cohorts 2022-2024 contribute their `year` and `median_hh_income` columns only; their labels were never loaded. "
+          "A cohort year outside the reference raises `ValueError`.",
           f"2. **`unemployment_rate` is imputed with the median of the refit rows, {meta['unemployment_median']!r}**, when missing (it is missing for the whole 2012 cohort). A NaN would let a tree isolate 2012, a calendar-year proxy that project rules forbid.",
-          "3. **`store_type`** is cast to a pandas category with the stored categories " + ", ".join(f"`{c}`" for c in meta["store_type_categories"]) + "; any other value is rejected (`ValueError`).",
-          "4. All other inputs are cast to float. Missing values elsewhere (`store_age_years`, ACS columns, `pop_density_sqmi`, neighbour counts without coordinates) use HGB's native missing-value branch, exactly as in training.", "",
+          "3. **`store_type`** becomes a pandas category with the stored categories " + ", ".join(f"`{c}`" for c in meta["store_type_categories"]) + "; any other or missing value raises `ValueError`.",
+          "4. All other inputs are cast to float. Missing values elsewhere (`store_age_years`, ACS columns, `pop_density_sqmi`, neighbour counts without coordinates) use HGB's native missing-value branch, exactly as in training.",
+          "5. Output: a DataFrame of the 20 features (`prep.get_feature_names_out()`), index preserved. The transformer is sklearn-compatible (`fit`/`transform`/`get_feature_names_out`, clonable; `fit(X, y, reference=...)` takes the reference rows).",
+          "",
+          "**Verified:** the transformer's output on all 21,330 refit rows is bit-identical to the inputs the bare model was previously fit on, and the Pipeline's `predict_proba` and raw score equal that bare model's **exactly** (`numpy.array_equal`) on every refit row and on the nine examples; "
+          "the example expected outputs are identical to those from the earlier bare-model build.", "",
           "## 4. Calibration: none applied", "",
           "The raw probabilities are used as they are. Evidence (2012-2018 model, validation 2019-2021, `docs/calibration.md`): mean predicted 3.48% vs observed 3.54% (ratio 0.98), calibration slope 1.26, Brier 0.0321. "
           "The rule fixed before looking (miscalibrated if the ratio is outside 0.8-1.25 or the slope outside 0.7-1.3) was not met. A Platt calibrator fit on training folds only (out-of-fold 2015-2018) would not have helped "
@@ -109,7 +120,7 @@ def write(meta, examples, shares, worst_share_diff, d, tr, va):
           "## 6. Explanations", "",
           "**Method.** With `max_leaf_nodes=2` every one of the 300 iterations is a stump that splits on one feature and returns one of two leaf values (already scaled by the learning rate). "
           f"The raw score (log-odds) is exactly `baseline + sum of per-feature contributions`, baseline = {base!r}, where a feature's contribution is the sum of the leaf values of the stumps that split on it. "
-          "`explain.contributions` obtains each stump's value from the stump's own predictor (the call HGB's `_raw_predict` makes), so it needs no re-implementation of thresholds, missing-value direction or category bitsets; it therefore uses scikit-learn internals (`_predictors`, `_preprocess_X`, `_bin_mapper`) and is only valid for the pinned version. "
+          "`explain.contributions(pipe, raw_rows)` takes the trees from `pipe[-1]` and their inputs from `pipe[:-1].transform(raw_rows)` (the transformer's output), and obtains each stump's value from the stump's own predictor (the call HGB's `_raw_predict` makes), so it needs no re-implementation of thresholds, missing-value direction or category bitsets; it therefore uses scikit-learn internals (`_predictors`, `_preprocess_X`, `_bin_mapper`) and is only valid for the pinned version. "
           "Verified to ~1e-14 on all 21,330 refit rows and on every example.", "",
           "**Reasons.** Contributions are centred at the average refit-row store (`reference_contributions`, stored in `bundle.json`); a reason is one of the three features with the largest **positive** centred contribution "
           "('raises risk relative to a typical store'). Fewer than three are returned when fewer features exceed the average. Text comes from the phrase table in `explain.PHRASES` (value-aware, e.g. 'It is a Small Grocery Store (raises risk)').", "",
@@ -125,14 +136,14 @@ def write(meta, examples, shares, worst_share_diff, d, tr, va):
           "69 of 150 flagged store-years are common to both lists; the priority list shifts toward isolated rural small stores. In Mecklenburg the top 10 per year caught 8 exits either way. These are descriptive counts on 150 flags, not a test.", "",
           "## 8. Environment pin and startup self-check", "",
           f"- **Pin the exact versions the bundle was built with: `scikit-learn=={meta['sklearn_version']}`** (also built with Python {meta['python_version']}, numpy {np.__version__}, pandas {pd.__version__}, scipy {scipy.__version__}, joblib {joblib.__version__}). "
-          "The pickle and the explanation code depend on scikit-learn internals, so a different version must not be served even if it loads. Pin it in the Modal image (`pip_install('scikit-learn==...')`), not just in `uv.lock`.",
-          "- **At startup the API runs `Bundle.self_check()` and answers `503` on every scoring route until it passes** (and on `/health` reports the failure messages). The check fails if (1) the installed scikit-learn is not the pinned version; "
-          f"(2) on any fixed example `baseline + sum(contributions)` differs from the raw score by more than {1e-9:g}; or (3) any example's raw score, probability, impact or priority differs from the stored expected value by more than {1e-9:g}, "
-          "or its tier or reasons differ. Check (3) is the local-versus-deployed match; check (2) is the explicit sum identity.",
-          "- The self-check was tested here: it passes on the freshly built bundle in a clean interpreter (`python -I`), and fails on a perturbed expected probability and on a wrong pinned version.", "",
+          "The pickle and the explanation code depend on scikit-learn internals, so a different version must not be served even if it loads. Pin it in the Modal image (`pip_install('scikit-learn==...')`), not just in `uv.lock`; `store_prep.py` must also be in the image.",
+          "- **At startup the API runs `Bundle.self_check()` and answers `503` on every scoring route until it passes** (and on `/health` reports the failure messages). The check fails if (1) the installed scikit-learn is not the pinned version in the bundle metadata; (2) the pipeline steps are not `prep`, `hgb`; "
+          f"(3) on any fixed example `baseline + sum(contributions)` (contributions from `pipe[-1]` on the transformer's output) differs from the raw score by more than {1e-9:g}; or (4) any example's raw score, probability, impact or priority differs from the stored expected value by more than {1e-9:g}, "
+          "or its tier or reasons differ. Check (4) is the local-versus-deployed match; check (3) is the explicit sum identity.",
+          "- The self-check was tested here: it passes on the freshly built bundle loaded in a clean interpreter (`python -I`, only `src/model` on the path), and fails on a perturbed expected probability and on a wrong pinned version.", "",
           "## 9. Fixed examples (local-vs-deployed matching)", "",
-          "All examples are real validation-era store-years scored by the refit model; inputs are exactly what `Bundle.score` takes (income already a percentile), expected outputs are the refit model's. Tolerance 1e-9. "
-          "Full inputs, contributions and reasons for all examples are in `docs/model_examples_d4.json` (the same file the self-check reads).", "",
+          "All examples are real validation-era store-years scored by the refit model; inputs are RAW, exactly what the Pipeline takes (`year` = `cohort_year`, `median_hh_income` in dollars), expected outputs are the refit model's. Tolerance 1e-9. "
+          "The impact input `dist_other_grocery_jan1_mi` is given under `context`. Full inputs, contributions and reasons for all examples are in `docs/model_examples_d4.json` (the same file the self-check reads).", "",
           "| id | description | record, cohort | probability | tier | impact | priority | reasons shown |", "|---|---|---|---|---|---|---|---|"]
     for e in examples:
         x = e["expected"]
@@ -142,8 +153,8 @@ def write(meta, examples, shares, worst_share_diff, d, tr, va):
         if e["id"] not in ("ex1", "ex4", "ex5"):
             continue
         x = e["expected"]
-        L += [f"### {e['id']}: {e['description']} (record {e['record_id']}, cohort {e['cohort_year']})", "", "Inputs (`null` = missing):", "", "```json",
-              json.dumps({**e["inputs"], "dist_other_grocery_jan1_mi (context)": e["context"]["dist_other_grocery_jan1_mi"]}, indent=1), "```", "",
+        L += [f"### {e['id']}: {e['description']} (record {e['record_id']}, cohort {e['cohort_year']})", "", "Raw inputs (`null` = missing; `year` = cohort year):", "", "```json",
+              json.dumps({"year": e["cohort_year"], **e["inputs"], "dist_other_grocery_jan1_mi (context)": e["context"]["dist_other_grocery_jan1_mi"]}, indent=1), "```", "",
               f"Expected: raw_score `{x['raw_score']!r}`, probability `{x['probability']!r}`, tier `{x['tier']}`, impact `{x['impact']!r}`, priority `{x['priority']!r}`.", "",
               "Reasons shown: " + ("none (low tier)" if not x["reasons"] else "; ".join(f"{r['text']} [{r['feature']}, +{r['effect']:.4f}]" for r in x["reasons"])), "",
               "Contributions (log-odds, sum + baseline = raw score): " + ", ".join(f"{k} {v:+.6f}" for k, v in x["contributions"].items() if v != 0.0), ""]

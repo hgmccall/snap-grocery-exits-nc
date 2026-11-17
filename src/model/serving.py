@@ -1,14 +1,15 @@
-"""Scoring code shared by the rebuild script (09_final_refit.py) and the D4 API: load the saved bundle, score store-years, self-check.
+"""Scoring code shared by the rebuild script (09_final_refit.py) and the D4 API: load the bundle, score store-years, self-check.
 
-Bundle (models/, rebuilt by 09_final_refit.py, gitignored):
-  trees_exit12m_2012_2021.joblib   bare HistGradientBoostingClassifier (no custom classes, so it unpickles with sklearn alone)
-  bundle.json                      sklearn version, feature order, store_type categories, unemployment median, tier cutoffs, reference contributions
-  impact_reference.json            sorted pooled reference values and weights for the impact score
-  examples.json                    fixed example inputs with expected outputs (same file as docs/model_examples_d4.json)
-Only load a joblib file you built yourself (pickle).
+models/pipeline.joblib is one joblib dict (the HW4 layout):
+  "pipeline"             fitted sklearn Pipeline: prep = store_prep.StoreFeaturePrep -> hgb = the frozen HistGradientBoostingClassifier
+  "metadata"             steps, created (UTC), sklearn_version, features, training_years, tier_cutoffs, ... (also written to models/metadata.json)
+  "reference_contributions"  mean per-feature log-odds contribution over the refit rows (centres the explanations)
+  "impact_reference"     weights and sorted pooled reference values for the impact score
+  "examples"             fixed example inputs with expected outputs (same content as docs/model_examples_d4.json)
+Unpickling needs `store_prep` importable (src/model/store_prep.py) and the pinned scikit-learn. Only load a file you built yourself (pickle).
 
-The caller supplies one row per store-year with the 20 feature columns (median_hh_income already converted to its within-cohort-year
-percentile, see `income_percentile_within_year`) plus `dist_other_grocery_jan1_mi` (role `context`, not a model input).
+Callers pass RAW rows: `year` + the 20 model inputs (median_hh_income in dollars) + `dist_other_grocery_jan1_mi` (role `context`, used only for
+the impact score). The Pipeline does all input preparation; nothing is re-implemented here.
 """
 
 import json
@@ -24,72 +25,56 @@ from impact import Ranker, impact_score
 
 ROOT = Path(__file__).resolve().parents[2]
 MODELS = ROOT / "models"
+BUNDLE_FILE = "pipeline.joblib"
 SUM_TOL = 1e-9          # contributions must add up to the raw score this closely
 MATCH_TOL = 1e-9        # local-vs-deployed: outputs must match the stored expected values this closely
-
-
-def income_percentile_within_year(df: pd.DataFrame) -> pd.Series:
-    """median_hh_income (dollars) -> percentile rank among all grocery store-years of the same cohort year (pandas rank(pct=True), 'average' ties).
-    Same transformation as common_model.load_rows; computed over every store-year of that cohort, not over the rows being scored."""
-    return df.groupby("year")["median_hh_income"].rank(pct=True)
+CONTEXT = "dist_other_grocery_jan1_mi"
 
 
 class Bundle:
     def __init__(self, directory: Path = MODELS):
         self.dir = Path(directory)
-        self.meta = json.loads((self.dir / "bundle.json").read_text())
-        self.model = joblib.load(self.dir / "trees_exit12m_2012_2021.joblib")
-        ref = json.loads((self.dir / "impact_reference.json").read_text())
+        b = joblib.load(self.dir / BUNDLE_FILE)
+        self.pipeline = b["pipeline"]
+        self.meta = b["metadata"]
+        self.examples = b["examples"]
+        self.reference = pd.Series(b["reference_contributions"])
+        ref = b["impact_reference"]
         self.rankers = {k: Ranker(ref[k]) for k in ("dist", "snap", "veh")}
-        self.reference = pd.Series(self.meta["reference_contributions"])
-        self.features = self.meta["features"]
-        self.lo, self.hi = self.meta["low_cutoff"], self.meta["high_cutoff"]
-
-    # ------------------------------------------------------------------ inputs
-    def prepare(self, X: pd.DataFrame) -> pd.DataFrame:
-        X = X[self.features].copy()
-        cats = self.meta["store_type_categories"]
-        bad = sorted(set(X["store_type"].dropna().astype(str)) - set(cats))
-        if bad or X["store_type"].isna().any():
-            raise ValueError(f"store_type must be one of {cats}; got {bad or 'missing'}")
-        X["store_type"] = pd.Categorical(X["store_type"].astype(str), categories=cats)
-        for c in self.features:
-            if c != "store_type":
-                X[c] = pd.to_numeric(X[c], errors="coerce").astype(float)
-        # same imputation as training: the training median, so a missing value cannot mark cohort 2012 (see docs/changes_since_d3.md)
-        X["unemployment_rate"] = X["unemployment_rate"].fillna(self.meta["unemployment_median"])
-        return X
+        self.lo, self.hi = self.meta["tier_cutoffs"]["low"], self.meta["tier_cutoffs"]["high"]
 
     def tier(self, p) -> np.ndarray:
         p = np.asarray(p)
         return np.where(p < self.lo, "low", np.where(p < self.hi, "medium", "high"))
 
-    # ------------------------------------------------------------------ scoring
-    def score(self, X: pd.DataFrame, dist_other_grocery_jan1_mi, k: int = 3) -> pd.DataFrame:
-        Xp = self.prepare(X)
-        raw = raw_score(self.model, Xp)
-        base, C = contributions(self.model, Xp)
-        p = self.model.predict_proba(Xp)[:, 1]
+    def score(self, X: pd.DataFrame, k: int = 3) -> pd.DataFrame:
+        """X: raw rows with `year`, the 20 inputs and `dist_other_grocery_jan1_mi`. Returns probability, tier, impact, priority, reasons
+        (medium and high tier only). `.attrs` carries the baseline and the per-feature contributions."""
+        p = self.pipeline.predict_proba(X)[:, 1]
+        raw = raw_score(self.pipeline, X)
+        base, C = contributions(self.pipeline, X)
         tiers = self.tier(p)
-        imp = impact_score(np.asarray(dist_other_grocery_jan1_mi, dtype=float), Xp["pct_snap_hh"].to_numpy(), Xp["pct_no_vehicle"].to_numpy(), self.rankers)
+        Xp = self.pipeline[:-1].transform(X)    # the transformer's output: percentile income, imputed unemployment
+        imp = impact_score(X[CONTEXT].to_numpy(dtype=float), Xp["pct_snap_hh"].to_numpy(), Xp["pct_no_vehicle"].to_numpy(), self.rankers)
         out = pd.DataFrame({"raw_score": raw, "probability": p, "tier": tiers, "impact": imp, "priority": p * imp,
-                            "reasons": display_reasons(self.model, Xp, self.reference, tiers, k)}, index=X.index)
+                            "reasons": display_reasons(self.pipeline, X, self.reference, tiers, k)}, index=X.index)
         out.attrs["baseline"], out.attrs["contributions"] = base, C
         return out
 
-    # ------------------------------------------------------------------ startup self-check
     def self_check(self, examples: list[dict] | None = None) -> tuple[bool, list[str]]:
         """Run at API startup; the API must answer 503 until this returns ok. Fails if (1) the installed scikit-learn is not the pinned version,
-        (2) on any fixed example baseline + sum(contributions) differs from the raw score by more than 1e-9, or (3) any example's raw score,
-        probability, tier, impact, priority or reasons differ from the stored expected outputs (local-vs-deployed match)."""
+        (2) the pipeline is not prep -> trees, (3) on any fixed example baseline + sum(contributions) differs from the raw score by more than
+        1e-9, or (4) any example's raw score, probability, impact or priority differs from the stored expected value by more than 1e-9, or its
+        tier or reasons differ (local-vs-deployed match)."""
         problems: list[str] = []
         if sklearn.__version__ != self.meta["sklearn_version"]:
             problems.append(f"scikit-learn {sklearn.__version__} installed, bundle pinned to {self.meta['sklearn_version']}")
-        examples = examples if examples is not None else json.loads((self.dir / "examples.json").read_text())["examples"]
+        examples = self.examples if examples is None else examples
         try:
-            X = pd.DataFrame([{**e["inputs"]} for e in examples], columns=self.features)
-            dist = [e["context"]["dist_other_grocery_jan1_mi"] for e in examples]
-            out = self.score(X, dist)
+            if [n for n, _ in self.pipeline.steps] != ["prep", "hgb"]:
+                problems.append(f"unexpected pipeline steps {[n for n, _ in self.pipeline.steps]}")
+            X = pd.DataFrame([{"year": e["cohort_year"], **e["inputs"], **e["context"]} for e in examples])
+            out = self.score(X)
             base, C = out.attrs["baseline"], out.attrs["contributions"]
             gap = np.abs(base + C.sum(axis=1).to_numpy() - out["raw_score"].to_numpy()).max()
             if not gap <= SUM_TOL:
@@ -101,7 +86,7 @@ class Bundle:
                         problems.append(f"example {e['id']}: {key} {r[key]!r} != expected {ex[key]!r}")
                 if ex["tier"] != r["tier"]:
                     problems.append(f"example {e['id']}: tier {r['tier']} != expected {ex['tier']}")
-                if [x["feature"] for x in ex["reasons"]] != [x["feature"] for x in r["reasons"]] or [x["text"] for x in ex["reasons"]] != [x["text"] for x in r["reasons"]]:
+                if [(x["feature"], x["text"]) for x in ex["reasons"]] != [(x["feature"], x["text"]) for x in r["reasons"]]:
                     problems.append(f"example {e['id']}: reasons differ from expected")
         except Exception as exc:  # any failure to run the check is a failed check
             problems.append(f"self-check raised {type(exc).__name__}: {exc}")

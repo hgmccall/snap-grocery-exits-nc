@@ -20,13 +20,14 @@ import pandas as pd
 
 
 def _hgb(model):
-    return model.named_steps["hgb"] if hasattr(model, "named_steps") else model
+    """The fitted trees model: the last step of the Pipeline (pipeline[-1]); a bare HistGradientBoostingClassifier is accepted too."""
+    return model[-1] if hasattr(model, "steps") else model
 
 
 def _prep(model, X):
-    """Apply the pipeline steps before the HGB step (unemployment imputation), return the frame HGB sees."""
-    if hasattr(model, "named_steps"):
-        for _, step in model.steps[:-1]:
+    """The transformer's output: the frame the trees see (pipeline[:-1].transform(X)); unchanged for a bare model."""
+    if hasattr(model, "steps"):
+        for _, step in model.steps[:-1]:   # == model[:-1].transform(X), written out so steps that are not BaseEstimators (earlier scripts) work too
             X = step.transform(X)
     return X
 
@@ -95,7 +96,7 @@ def reference_contributions(model, X_train) -> pd.Series:
 
 def top_reasons(model, X: pd.DataFrame, reference: pd.Series, k: int = 3) -> list[list[dict]]:
     """For each row of X, up to k risk-RAISING reasons [{feature, value, effect, text}], largest first. `effect` is the log-odds contribution
-    relative to the average store. Fewer than k are returned when fewer features push risk above the average store."""
+    relative to the average store. `model` is the fitted Pipeline and X the RAW input rows. Fewer than k are returned when fewer features push risk above the average store."""
     _, C = contributions(model, X)
     D = C - reference.reindex(C.columns)
     Xp = _prep(model, X)
@@ -106,8 +107,10 @@ def top_reasons(model, X: pd.DataFrame, reference: pd.Series, k: int = 3) -> lis
             if eff <= 0 or len(reasons) == k:
                 break
             val = Xp.iloc[i][f]
+            raw = X.iloc[i][f] if f in X.columns else val   # the value as supplied: a missing one was imputed or goes down HGB's missing branch
+            text = (f"Its {f.replace('_', ' ')} is not available" if pd.isna(raw) and f != "store_age_years" else PHRASES[f](val))
             reasons.append({"feature": f, "value": None if pd.isna(val) else (str(val) if f == "store_type" else float(val)),
-                            "effect": float(eff), "text": PHRASES[f](val) + " (raises risk)"})
+                            "effect": float(eff), "text": text + " (raises risk)"})
         out.append(reasons)
     return out
 

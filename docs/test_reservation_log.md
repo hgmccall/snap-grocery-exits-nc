@@ -28,3 +28,12 @@ no row after the cut-off (the schema's CHECK constraints refuse them).
 - **`qa_reentered_later` / `qa_reentry_gap_days`** count re-authorizations of train/validation exits through the end of the data
   (Dec 2025). They are QA columns (never features), not loaded to Supabase, and reveal no test-cohort label. The reentry
   analysis reports numbers both through the end of the data and through 2021-12-31 only.
+
+### 2026-11-17: test-file feature columns read to build income reference distributions (no outcomes)
+- **What was read:** `src/model/09_final_refit.py` opens `data/processed/store_year_test.parquet` with `columns=["year", "median_hh_income"]` only, so the
+  deployed Pipeline (`store_prep.StoreFeaturePrep`) can convert tract income to a within-cohort-year percentile for cohorts 2022-2024.
+  The same step in `05d_context_columns.py` adds the Jan-1 distance column to the test file without reading any label.
+- **What was not read:** no label, outcome, `exit_*`, `qa_*` or `impact_*` column; no counts or rates by outcome. Only the income distribution of the
+  cohort's store-years (a Jan-1 feature) is stored.
+- **Use:** input preparation only. Nothing about the model, its settings, tiers or cutoffs was derived from these rows.
+
