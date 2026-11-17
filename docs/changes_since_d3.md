@@ -187,3 +187,14 @@ Protocol: frozen trees settings (lr 0.1, max_leaf_nodes 2, min_samples_leaf 100,
 rolling folds inside 2012-2018 (fit 2012..k-1, score k, k = 2015-2018), same as the current model. Validation
 (2019-2021) is reported for both versions (PR-AUC and the majority-Black vs majority-White false-positive rate, using
 the top-50-per-year flag from `02_error_analysis.py`) but is **report only, not for selection**.
+
+### Result and decision (fairness check)
+
+Source: `docs/fairness_variant.md` (`src/model/04_fairness_variant.py`). Mean training-fold PR-AUC, folds 2015-2018, frozen settings:
+with demographics **0.1549**, without **0.1486** (folds 0.100 / 0.157 / 0.202 / 0.135 vs 0.097 / 0.189 / 0.199 / 0.134). The variant needed
+>= 0.150 and is 0.0014 short, so **the rule is not met: the current model with demographics is kept.**
+
+Report only (validation 2019-2021, not used for selection): PR-AUC 0.149 with vs 0.162 without. Top-50-per-year false-positive rate,
+majority-Black tracts: 4.1% with vs 4.6% without; majority-White: 1.5% with vs 1.2% without (29 and 131 validation exits respectively).
+Dropping the demographics did not narrow the Black/White false-positive gap here (it widened slightly), so the validation numbers would not have
+supported the rationale either; the rule was applied as written on the training folds.
