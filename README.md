@@ -72,11 +72,16 @@ and verifies the SHA-256 of every file. It exits non-zero on any mismatch and ne
 | TIGER/Line tract shapefile, 2020, NC | `tl_2020_37_tract.*` (7 files) | same page | Script (zip) |
 | Proximity to a Grocery Store, Mecklenburg neighborhoods (Quality of Life Explorer) | `Proximity to a Grocery Store.csv` | [Quality of Life Explorer](https://explore.charlottenc.gov/), variable [m45](https://maps.mecklenburgcountync.gov/qol/data/meta/m45.html) | **Manual export, no stable URL**; Release fallback only |
 
-Not every file in the manifest is used yet. The pipeline reads the SNAP retailer CSV, the two RUCA tract files and the two
-tract shapefiles (plus the ACS tables below). The three Food Access Research Atlas workbooks, their two documentation PDFs and
-`Proximity to a Grocery Store.csv` are downloaded and verified but **not read by any script** (the Atlas features are deferred;
-the Charlotte proximity file covers Mecklenburg only). The ZIP-level RUCA files, the 2025 SNAP-authorized Retailer Access Map and
-the tract relationship-file explanation were removed from `data/raw/` and the manifest.
+Which files are read:
+- **The pipeline (00-05)** reads the SNAP retailer CSV, both RUCA tract files, both tract shapefiles and the ACS tables below.
+- **`05c_new_features.py`** also reads the three Food Access Research Atlas workbooks and the 17 BLS LAUS county files
+  (`data/raw/bls_laus/`). These are candidate features tested in the pre-registered ablation and **not adopted into the frozen model**.
+- **The two Atlas documentation PDFs** are documentation only; no script reads them.
+- **`Proximity to a Grocery Store.csv`** (Mecklenburg only) is downloaded and verified but **not read by any script**. The D2 data note
+  said the dashboard uses it; that was inaccurate, and it will be corrected in the final report.
+
+The ZIP-level RUCA files, the 2025 SNAP-authorized Retailer Access Map and the tract relationship-file explanation were removed from
+`data/raw/` and the manifest.
 
 Hand-made reference files that are committed (they are decisions, not raw data): `data/reference/successor_overrides.csv`
 (record pairs that are never ownership-change successors, each with a reason; read by `03_spells.py` and logged) and
