@@ -61,7 +61,7 @@ The pipeline takes a DataFrame with `year` (the cohort year t, used only to pick
 | 12 | `acs_population` | ACS 5-year B01003, latest vintage released before Jan 1 of t | persons in the store's tract | yes |
 | 13 | `pop_density_sqmi` | ACS B01003 / TIGER land area | persons per square mile | yes |
 | 14 | `pct_poverty` | ACS 5-year B17001 | share 0-1 | yes |
-| 15 | `median_hh_income` | ACS 5-year B19013 (dollars) | **input is the within-cohort-year percentile of the tract's median household income** (0-1), not dollars: see 'Input preparation' | yes |
+| 15 | `median_hh_income` | ACS 5-year B19013 (dollars) | tract median household income in **dollars** (inflation-adjusted to the vintage's last year; top-coded at 250,001); the Pipeline converts it to the within-cohort-year percentile (0-1), see 'Input preparation' | yes |
 | 16 | `pct_no_vehicle` | ACS 5-year B25044 | share 0-1 of occupied housing units | yes |
 | 17 | `pct_snap_hh` | ACS 5-year B22001 | share 0-1 of households | yes |
 | 18 | `pct_renter` | ACS 5-year B25003 | share 0-1 of occupied housing units | yes |

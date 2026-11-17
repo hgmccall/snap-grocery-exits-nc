@@ -31,7 +31,7 @@ RAW = {
     "acs_population": ("ACS 5-year B01003, latest vintage released before Jan 1 of t", "persons in the store's tract"),
     "pop_density_sqmi": ("ACS B01003 / TIGER land area", "persons per square mile"),
     "pct_poverty": ("ACS 5-year B17001", "share 0-1"),
-    "median_hh_income": ("ACS 5-year B19013 (dollars)", "**input is the within-cohort-year percentile of the tract's median household income** (0-1), not dollars: see 'Input preparation'"),
+    "median_hh_income": ("ACS 5-year B19013 (dollars)", "tract median household income in **dollars** (inflation-adjusted to the vintage's last year; top-coded at 250,001); the Pipeline converts it to the within-cohort-year percentile (0-1), see 'Input preparation'"),
     "pct_no_vehicle": ("ACS 5-year B25044", "share 0-1 of occupied housing units"),
     "pct_snap_hh": ("ACS 5-year B22001", "share 0-1 of households"),
     "pct_renter": ("ACS 5-year B25003", "share 0-1 of occupied housing units"),
