@@ -174,3 +174,16 @@ The "current" row reproduces the 0.155 in this document (0.1549).
 are lower (-0.003 at the current settings, -0.002 with the grid). Under the pre-registered rule, **the current model is kept and the feature set is
 frozen** (the four candidates are excluded from `feature_columns()` by default in `common_model.py`, so `01/02` are unchanged). Validation was
 not scored for the new features. Nothing is loaded to Supabase.
+
+## Model refinement (D4): demographics-free variant (pre-registered)
+
+Written and committed before the variant was run. No re-tuning, no new features, test outcomes never read.
+
+A variant without tract demographic features (pct_poverty, median_hh_income, pct_snap_hh, pct_no_vehicle, pct_renter,
+unemployment_rate, pct_age_65_plus) is preferred if its mean training-fold PR-AUC is within 0.005 of 0.155; rationale:
+less reliance on neighborhood demographics.
+
+Protocol: frozen trees settings (lr 0.1, max_leaf_nodes 2, min_samples_leaf 100, l2 0, 300 iterations), `exit_12m`,
+rolling folds inside 2012-2018 (fit 2012..k-1, score k, k = 2015-2018), same as the current model. Validation
+(2019-2021) is reported for both versions (PR-AUC and the majority-Black vs majority-White false-positive rate, using
+the top-50-per-year flag from `02_error_analysis.py`) but is **report only, not for selection**.
