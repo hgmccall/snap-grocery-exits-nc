@@ -1,0 +1,7 @@
+{
+  "base_rate": 0.042183954078227205,
+  "low_cutoff": 0.021,
+  "high_cutoff": 0.084,
+  "low_multiple": 0.5,
+  "high_multiple": 2.0
+}
