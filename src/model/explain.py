@@ -110,3 +110,15 @@ def top_reasons(model, X: pd.DataFrame, reference: pd.Series, k: int = 3) -> lis
                             "effect": float(eff), "text": PHRASES[f](val) + " (raises risk)"})
         out.append(reasons)
     return out
+
+
+def display_reasons(model, X: pd.DataFrame, reference: pd.Series, tiers, k: int = 3) -> list[list[dict]]:
+    """Display rule: reasons are shown only for medium and high tier rows; low-tier rows get an empty list (their effects are tiny
+    and read as noise). `tiers` is an array of 'low' / 'medium' / 'high' aligned with X."""
+    tiers = np.asarray(tiers)
+    out: list[list[dict]] = [[] for _ in range(len(X))]
+    show = np.flatnonzero(tiers != "low")
+    if len(show):
+        for i, r in zip(show, top_reasons(model, X.iloc[show], reference, k)):
+            out[i] = r
+    return out

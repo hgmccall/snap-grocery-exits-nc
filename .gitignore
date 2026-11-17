@@ -43,3 +43,6 @@ build/
 Thumbs.db
 desktop.ini
 .idea/
+
+# Saved models (rebuilt by src/model/09_final_refit.py)
+models/

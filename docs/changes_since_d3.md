@@ -210,3 +210,15 @@ years, exit rate 4.4%); majority-White tracts 4,155 (8.0% Small Grocery Stores, 
 The type and chain-size mixes differ; store age barely does, so it is not yet supported as a driver. **This attribution is an inference, not
 tested** (no ablation of those store-level features was run). To address in D6 on the test set: report group FPRs with counts, and say that the
 gap persists without demographic inputs and is plausibly mediated by store type and chain size.
+
+## Model refinement (D4): decisions and final refit
+
+Decisions after the fairness check, calibration, tiers, explanations and impact steps (all on the frozen trees settings; no re-tuning, no new
+features, test outcomes never read): (1) impact weights stay 0.5 / 0.25 / 0.25; (2) the Jan-1 distance to the nearest other grocery is a prep-pipeline
+column `dist_other_grocery_jan1_mi` (`src/prep/05d_context_columns.py`, new role `context`: never a model feature); (3) explanations are shown only for
+medium and high tiers; (4) the API pins the exact scikit-learn version and returns 503 if its startup self-check fails; (5) the app defaults to risk x impact
+with a risk-alone option. Calibration: none applied (`docs/calibration.md`). Tiers: 0.021 / 0.084 (`docs/risk_tiers.md`).
+
+Final model: refit on 2012-2021 with the frozen settings (`src/model/09_final_refit.py`; bundle in gitignored `models/`). Tier shares moved by at most 2.3
+percentage points versus the 2012-2018 model (`docs/refit_tier_shares.md`). **The refit model cannot be evaluated on validation; its only evaluation is the
+D6 test run.** The contract for the D4 builder is `docs/model_spec_d4.md`.
