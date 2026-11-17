@@ -162,10 +162,11 @@ uv run python src/model/09_final_refit.py        # refit on 2012-2021 -> models/
 model's predictions and that a fresh process loads the bundle and passes the self-check.
 
 The reserved test cohorts (2022-2024) are written to `data/processed/store_year_test.parquet`. That file stays local: it is
-never loaded to Supabase and the outcomes in it are never read: no outcome statistic, plot or summary is computed from it. The only
-access to it is `year` and `median_hh_income` (a Jan-1 feature), read by `09_final_refit.py` to build the income reference
-distributions for the 2012-2024 cohorts; `05d_context_columns.py` also adds the Jan-1 distance column to it without reading any label.
-Both are logged in [`docs/test_reservation_log.md`](docs/test_reservation_log.md). The test years are evaluated once, in D6.
+never loaded to Supabase and no outcome statistic, plot or summary is computed from it. The prep scripts 05, 05c and 05d also compute
+feature and context columns for the test rows, using only information available on January 1 of each year; no feature code reads a
+label, end date or outcome column (05 carries the panel's label columns through to the file without examining them). The one direct read
+of the test file for modeling is `year` and `median_hh_income`, used by `09_final_refit.py` to build the income references for the
+2012-2024 cohorts, logged in [`docs/test_reservation_log.md`](docs/test_reservation_log.md). The test years are evaluated once, in D6.
 
 ## D4 API (in progress)
 
