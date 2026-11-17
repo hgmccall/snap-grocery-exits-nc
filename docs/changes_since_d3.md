@@ -198,3 +198,15 @@ Report only (validation 2019-2021, not used for selection): PR-AUC 0.149 with vs
 majority-Black tracts: 4.1% with vs 4.6% without; majority-White: 1.5% with vs 1.2% without (29 and 131 validation exits respectively).
 Dropping the demographics did not narrow the Black/White false-positive gap here (it widened slightly), so the validation numbers would not have
 supported the rationale either; the rule was applied as written on the training folds.
+
+### Bias finding (flag for the D6 test-set bias discussion)
+
+Removing the seven tract demographic features did not reduce the majority-Black vs majority-White false-positive gap; it widened slightly
+(top-50-per-year FPR, validation 2019-2021: Black 4.1% -> 4.6%, 31 -> 36 of 636 non-exits flagged; White 1.5% -> 1.2%, 81 -> 63 of 4,024).
+Validation has 29 majority-Black and 131 majority-White exits, so these rates are noisy. Our reading is that the disparity is carried by
+store-level features (store type, chain size, store age) whose distribution differs by tract, not by the demographic inputs. Supporting
+descriptive counts (validation store-years): majority-Black tracts 665 (14.0% Small Grocery Stores, median chain size 13, median store age 13.3
+years, exit rate 4.4%); majority-White tracts 4,155 (8.0% Small Grocery Stores, median chain size 44, median age 14.6 years, exit rate 3.2%).
+The type and chain-size mixes differ; store age barely does, so it is not yet supported as a driver. **This attribution is an inference, not
+tested** (no ablation of those store-level features was run). To address in D6 on the test set: report group FPRs with counts, and say that the
+gap persists without demographic inputs and is plausibly mediated by store type and chain size.
