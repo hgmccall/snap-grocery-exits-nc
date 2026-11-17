@@ -27,6 +27,7 @@ n_bigstore_openings_2mi_prior12m,Int64,feature,0.0,0.0,0.0
 dist_nearest_bigstore_mi,float64,feature,0.0,0.0,0.0
 county_unemployment_rate,float64,feature,0.0,0.0,0.0
 fara_lilat_flag,float64,feature,52.2,0.0,0.0
+dist_other_grocery_jan1_mi,float64,context,0.0,0.0,0.0
 bias_pct_hispanic,float64,bias_,33.6,0.0,0.0
 bias_pct_white_nh,float64,bias_,33.6,0.0,0.0
 bias_pct_black_nh,float64,bias_,33.6,0.0,0.0

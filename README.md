@@ -108,6 +108,8 @@ uv run python src/prep/03_spells.py     # authorization periods -> spells, owner
 uv run python src/prep/04_panel.py      # store-years, tracts, labels, train/validation vs reserved test split
 uv run python src/prep/05_features.py   # Jan-1 features -> data/processed/store_year_*.parquet
 uv run python src/prep/05b_location_gaps.py   # days each store location went without SNAP after a grocery record ended (through 2021 only)
+uv run python src/prep/05c_new_features.py   # D4 candidate features (not in the frozen model)
+uv run python src/prep/05d_context_columns.py   # Jan-1 distance to the nearest other grocery (role `context`, impact score only)
 
 # 4. reports (outcome statistics use train and validation years only)
 uv run python src/eda/batch_end_profile.py

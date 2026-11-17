@@ -49,6 +49,7 @@ STORE_YEAR = {
     "pct_renter": (ACS + ", B25003", "Share of occupied housing units that are renter-occupied.", "share 0-1"),
     "pct_age_65_plus": (ACS + ", B01001", "Share of the tract population aged 65 and over (male and female cells 65-66 through 85+).", "share 0-1"),
     "unemployment_rate": (ACS + ", B23025", "Unemployed civilians as a share of the civilian labor force. **Gap: missing for the entire 2012 cohort**, because the 2006-2010 vintage (the only one usable in 2012) does not publish table B23025; present from the 2013 cohort on.", "share 0-1"),
+    "dist_other_grocery_jan1_mi": ("derived, 05d_context_columns", "Distance to the nearest OTHER grocery-type authorization (any of the five grocery store types) active on Jan 1 of t (own Record ID excluded; a missing or placeholder start date counts as active), in EPSG:32119 State Plane metres converted to miles. Jan-1 stand-in for the exit-time `impact_dist_nearest_other_grocery_mi` (Spearman 0.99 among validation exits). **Role `context`: input to the impact score (`docs/impact_score.md`), never a model feature.** Missing without coordinates.", "miles >= 0"),
     "n_bigstore_openings_2mi_prior12m": ("derived, 05c_new_features", "Supermarket or Super Store spells (cleaned retailer/spell tables) that STARTED in [Jan 1 of t-1, Jan 1 of t) within 2 miles of the store, excluding the store itself and ownership changes (a spell that is the successor of a spell that ended before Jan 1 of t; a transfer whose predecessor ends on or after Jan 1 of t is not yet knowable, so that opening counts). Spells with the USDA placeholder start date are never counted. Distance in EPSG:32119 metres. Missing without coordinates. **Candidate feature (D4, pre-registered in `docs/changes_since_d3.md`); not loaded to Supabase.**", "integer >= 0"),
     "dist_nearest_bigstore_mi": ("derived, 05c_new_features", "Distance to the nearest Supermarket or Super Store authorized on Jan 1 of t, excluding the store itself (same Record ID). Missing without coordinates. **Candidate feature (D4); not loaded to Supabase.**", "miles >= 0"),
     "county_unemployment_rate": ("BLS LAUS, Labor Force Data by County, annual averages (`data/raw/bls_laus/laucntyYY.xlsx`, manual download, `data/sources.yaml`)", "Unemployed / labor force for the store's county, annual average of year **t-2** (the annual average for Y is published about April of Y+1, so t-2 is the latest year known on Jan 1 of t). Constant within a county-year, so it cannot rank stores within a county. **Limitations:** it varies mainly over time (it may echo batch-heavy years); the 2020 COVID spike enters only in the 2022 test cohort; LAUS is revised and only the current revised series is available. No missing values (all 100 NC counties in every file). **Candidate feature (D4); not loaded to Supabase.**", "share 0-1"),
@@ -123,11 +124,12 @@ TYPE_NAMES = {
     "int64": "integer", "Int64": "integer (nullable)", "int8": "0/1 integer", "Int8": "0/1 integer (nullable)",
     "float64": "decimal", "bool": "boolean", "boolean": "boolean (nullable)", "str": "text", "object": "text",
 }
-ROLE_ORDER = ["id", "label", "feature", "grouping", "bias_", "qa_", "impact_"]
+ROLE_ORDER = ["id", "label", "feature", "context", "grouping", "bias_", "qa_", "impact_"]
 ROLE_TEXT = {
     "id": "identifies a row; `year` and `split` are indexes, never features",
     "label": "the outcome",
     "feature": "the only columns a model may use (known on Jan 1 of t)",
+    "context": "known on Jan 1 of t and used to score the access impact of a predicted exit (the impact score), but never a model feature",
     "grouping": "slices results (county, tract, coordinates, ACS vintage metadata); never a feature",
     "bias_": "race/ethnicity for group error analysis (D3) and the bias discussion (D6); never a feature",
     "qa_": "data-quality or outcome bookkeeping; never a feature",

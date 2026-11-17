@@ -13,85 +13,34 @@ Definition, fixed before looking at any result (no tuning):
   Weights: distance is the direct access measure; the two tract-need measures together get equal weight. Missing tract values -> rank 0.5.
   A store with no other grocery at all (distance +inf) gets distance rank 1; missing coordinates get 0.5.
   priority = predicted exit probability x impact.
-Reference tables (the sorted pooled values) are saved to docs/impact_reference.json so the deployed app uses the same ranks.
+Reference tables (the sorted pooled values) are saved to docs/impact_reference.json so the deployed app uses the same ranks. The score functions live in impact.py.
 
 Compared on validation 2019-2021: top 50 statewide per cohort year by risk alone vs by priority, and top 10 in Mecklenburg. Reports overlap,
 exits caught, gap exits caught (exit-time distance to nearest other grocery > 1 mile, as in 01_evaluate), and who moves in and out.
-The test file is never read. Writes docs/impact_score.md, docs/impact_reference.json, data/processed/impact_inputs.parquet (gitignored).
+The test file is never read. Writes docs/impact_score.md, docs/impact_reference.json.
 """
 
-import importlib
 import json
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.spatial import cKDTree
 
 HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent / "prep"))
-from common_model import DOCS, PROCESSED, ROOT, TOP_K_MECK, TOP_K_STATE, TRAIN_YEARS, VAL_YEARS, top_k_flags  # noqa: E402
+sys.path.insert(0, str(HERE))
+from common_model import DOCS, PROCESSED, TOP_K_MECK, TOP_K_STATE, TRAIN_YEARS, VAL_YEARS, top_k_flags  # noqa: E402
 
-feat05 = importlib.import_module("05_features")
-project, M_PER_MI = feat05.project, feat05.M_PER_MI
-W = {"dist": 0.50, "snap": 0.25, "veh": 0.25}
+from impact import W, Ranker, impact_score  # noqa: E402
 LABEL = "exit_12m"
 YEARS = list(TRAIN_YEARS) + list(VAL_YEARS)
-
-
-def jan1_distance(frame: pd.DataFrame, periods: pd.DataFrame) -> pd.Series:
-    """Miles to the nearest other grocery authorization active on Jan 1 of each row's cohort year (NaN if none or no coordinates)."""
-    per = periods[periods["is_grocery"] & periods["latitude"].notna()].copy()
-    per["px"], per["py"] = project(per["latitude"], per["longitude"])
-    fx, fy = (pd.Series(np.asarray(a, dtype=float), index=frame.index) for a in project(frame["latitude"], frame["longitude"]))
-    out = pd.Series(np.nan, index=frame.index)
-    for y, idx in frame.groupby("year").groups.items():
-        j1 = pd.Timestamp(int(y), 1, 1)
-        act = per[(per["auth_date"].isna() | (per["auth_date"] <= j1)) & (per["end_date"].isna() | (per["end_date"] >= j1))]
-        r = frame.loc[idx]
-        ok = np.isfinite(fx.loc[idx].to_numpy())
-        pts = np.column_stack([fx.loc[idx].to_numpy()[ok], fy.loc[idx].to_numpy()[ok]])
-        rec = r["record_id"].to_numpy()[ok]
-        tree = cKDTree(np.column_stack([act["px"], act["py"]]))
-        k = min(6, len(act))
-        d, i = tree.query(pts, k=k)
-        same = act["record_id"].to_numpy()[i] == rec[:, None]
-        d = np.where(same, np.inf, d)
-        best = d.min(axis=1) / M_PER_MI
-        out.loc[idx[ok]] = np.where(np.isfinite(best), best, np.nan)
-    return out
-
-
-class Ranker:
-    """Percentile rank against a fixed sorted reference (midpoint of ties), so a single store can be scored later."""
-
-    def __init__(self, ref):
-        self.ref = np.sort(np.asarray(ref, dtype=float)[np.isfinite(ref)])
-
-    def __call__(self, x):
-        x = np.asarray(x, dtype=float)
-        lo, hi = np.searchsorted(self.ref, x, "left"), np.searchsorted(self.ref, x, "right")
-        r = (lo + hi) / 2 / len(self.ref)
-        return np.where(np.isfinite(x), r, np.nan)
-
-
-def impact_score(dist, snap, veh, rk):
-    """rk = dict of Rankers for 'dist', 'snap', 'veh'. No other grocery (dist NaN from none found) must be passed as np.inf -> rank 1."""
-    rd = np.where(np.isposinf(dist), 1.0, rk["dist"](dist))
-    rd = np.where(np.isnan(rd), 0.5, rd)
-    rs = np.nan_to_num(rk["snap"](snap), nan=0.5)
-    rv = np.nan_to_num(rk["veh"](veh), nan=0.5)
-    return W["dist"] * rd + W["snap"] * rs + W["veh"] * rv
 
 
 def main():
     sy = pd.read_parquet(PROCESSED / "store_year_trainval.parquet")
     assert sy["year"].max() <= 2021
     sy = sy[sy["year"].isin(YEARS)].copy()
-    periods = pd.read_parquet(ROOT / "data" / "interim" / "periods_spells.parquet")
-    sy["dist_other_grocery_jan1_mi"] = jan1_distance(sy, periods)
-    sy[["record_id", "year", "dist_other_grocery_jan1_mi"]].to_parquet(PROCESSED / "impact_inputs.parquet", index=False)
+    # dist_other_grocery_jan1_mi is a `context` column built by src/prep/05d_context_columns.py
     n_nocoord = int(sy["latitude"].isna().sum())
 
     # pooled reference (inputs only); stores with no other grocery anywhere count as +inf distance
@@ -139,7 +88,7 @@ def main():
          "**impact = 0.50 x rank(distance to nearest other SNAP grocery on Jan 1) + 0.25 x rank(tract % SNAP households) + 0.25 x rank(tract % households with no vehicle)**, "
          "each rank a percentile against the pooled 2012-2021 store-year reference (inputs only), so impact lies in (0, 1]. **priority = predicted exit probability x impact.** "
          "Rank tables are in `docs/impact_reference.json` for the app.", "",
-         f"Jan-1 distance: computed for {len(sy):,} store-years 2012-2021 ({n_nocoord} without usable coordinates get distance rank 0.5). "
+         f"Jan-1 distance (`dist_other_grocery_jan1_mi`, built in `05d_context_columns.py`): available for {len(sy):,} store-years 2012-2021 ({n_nocoord} without usable coordinates get distance rank 0.5). "
          f"Validity check against the exit-time gap measure (outcome-side, used only here): Spearman correlation between Jan-1 distance and distance at the exit date among validation exits = {corr:.2f}; "
          f"{gap_share:.0%} of validation 'gap exits' (> 1 mile at exit) already had no other grocery within a mile on Jan 1.", "",
          f"Gap exits in validation: {int((y & gap).sum())} of {int(y.sum())} exits ({int((y & gap).sum()) / int(y.sum()):.0%}).", "",
