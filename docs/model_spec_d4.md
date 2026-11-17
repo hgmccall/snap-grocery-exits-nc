@@ -254,3 +254,50 @@ Contributions (log-odds, sum + baseline = raw score): store_type -0.459240, stor
 - Discrimination is modest: 2012-2018 model validation PR-AUC 0.149 against a 3.5% exit rate; top-50-per-year precision 25%. Say 'higher risk', not 'will exit'.
 - Fairness: dropping the seven tract demographic inputs did not narrow the majority-Black vs majority-White false-positive gap (4.1% vs 1.5% with them, 4.6% vs 1.2% without, validation, top 50 per year); it is plausibly carried by store type and chain size. To be reported on the test set in D6 (`docs/changes_since_d3.md`).
 - The 2022-2024 cohorts have never been scored. The refit model's only evaluation is the D6 test run.
+
+
+## 11. Request validation: 422, never 500
+
+**The API must validate every request with Pydantic before it calls the Pipeline and answer HTTP 422 for invalid input. The transformer's `ValueError` for an unknown cohort year, an unknown or missing `store_type`, or a missing input column must become a 422 through that validation, never a 500.** As defence in depth, also wrap the Pipeline call: `except ValueError` -> 422 with the message. A 500 is for genuine server faults only; an unavailable model (failed startup self-check) is a 503.
+
+**The transformer does not range- or type-check numbers.** A negative `store_age_years`, a share above 1 or the string `'abc'` in a numeric field is scored silently (the string becomes missing), so those rules exist only in the request model. The rules below are `store_prep.FIELD_RULES` (generate the Pydantic model from it); ranges come from the 2012-2021 store-years (e.g. `chain_size` >= 1 because it counts the store itself; shares max 0.99, income max 249,100 dollars after the 250,001 top-code). Every key must be present in the body. `null` is accepted only for the nullable fields (missing in the source data); the others may not be null.
+
+| Field | Kind | Valid values | Null allowed |
+|---|---|---|---|
+| `year` | int | integer >= 2012 and <= 2024 | no |
+| `store_type` | category | one of Large Grocery Store, Medium Grocery Store, Small Grocery Store, Super Store, Supermarket | no |
+| `store_age_years` | float | number >= 0 | yes |
+| `auth_date_placeholder` | binary | 0 or 1 | no |
+| `n_prior_spells_same_id` | int | integer >= 0 | no |
+| `n_prior_ownership_changes` | int | integer >= 0 | no |
+| `chain_size` | int | integer >= 1 | no |
+| `n_grocery_05mi` | int | integer >= 0 | no |
+| `n_grocery_1mi` | int | integer >= 0 | no |
+| `n_convenience_1mi` | int | integer >= 0 | no |
+| `convenience_to_grocery_ratio_1mi` | float | number >= 0 | no |
+| `n_grocery_ends_1mi_prior12m` | int | integer >= 0 | no |
+| `acs_population` | float | number >= 0 | yes |
+| `pop_density_sqmi` | float | number >= 0 | yes |
+| `pct_poverty` | share | number from 0 to 1 | yes |
+| `median_hh_income` | float | number >= 0 | yes |
+| `pct_no_vehicle` | share | number from 0 to 1 | yes |
+| `pct_snap_hh` | share | number from 0 to 1 | yes |
+| `pct_renter` | share | number from 0 to 1 | yes |
+| `pct_age_65_plus` | share | number from 0 to 1 | yes |
+| `unemployment_rate` | share | number from 0 to 1 | yes |
+| `dist_other_grocery_jan1_mi` | float | number >= 0 | yes |
+
+Invalid examples (`invalid_examples` in `docs/model_examples_d4.json`; each must return **422**, and the error should point at the field):
+
+| id | case | expected 422 error on | what the local Pipeline does with it |
+|---|---|---|---|
+| bad1 | unknown store_type | `store_type`: not one of the five grocery store types | raises ValueError: store_type must be one of ['Large Grocery Store', 'Medium Grocery Store', 'Small Grocery S |
+| bad2 | cohort year after the reference range | `year`: year must be an integer 2012-2024 | raises ValueError: no income reference for cohort year(s) [2025]; the reference covers 2012-2024 |
+| bad3 | cohort year before the reference range | `year`: year must be an integer 2012-2024 | raises ValueError: no income reference for cohort year(s) [2011]; the reference covers 2012-2024 |
+| bad4 | required field missing (chain_size key absent) | `chain_size`: field required | raises ValueError: missing input columns: ['chain_size'] |
+| bad5 | negative store age | `store_age_years`: must be >= 0 | accepted silently (no ValueError): only request validation can reject it |
+| bad6 | share above 1 | `pct_poverty`: must be between 0 and 1 | accepted silently (no ValueError): only request validation can reject it |
+| bad7 | non-numeric value for a numeric field | `n_grocery_05mi`: not a valid integer | accepted silently (no ValueError): only request validation can reject it |
+| bad8 | null for a field that may not be null | `n_prior_spells_same_id`: may not be null | accepted silently (no ValueError): only request validation can reject it |
+
+Cases bad1-bad4 are the ones the transformer rejects itself (the API must convert that `ValueError` to 422); bad5-bad8 pass the transformer silently, so only request validation catches them. A deployment test should post each payload and assert status 422 (and not 500).

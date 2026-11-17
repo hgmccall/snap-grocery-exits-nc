@@ -648,5 +648,295 @@
     }
    }
   }
+ ],
+ "invalid_examples_note": "Request bodies the API must reject with HTTP 422 (Pydantic validation), never 500. `payload` is a flat request body (year + 20 inputs + dist_other_grocery_jan1_mi); `transformer_behavior` records what the local Pipeline does with it. Rules: FIELD_RULES in src/model/store_prep.py.",
+ "invalid_examples": [
+  {
+   "id": "bad1",
+   "description": "unknown store_type",
+   "payload": {
+    "year": 2020,
+    "store_type": "Gas Station",
+    "store_age_years": 3.482546201232033,
+    "auth_date_placeholder": 0.0,
+    "n_prior_spells_same_id": 0.0,
+    "n_prior_ownership_changes": 0.0,
+    "chain_size": 12.0,
+    "n_grocery_05mi": 2.0,
+    "n_grocery_1mi": 2.0,
+    "n_convenience_1mi": 2.0,
+    "convenience_to_grocery_ratio_1mi": 0.6666666666666666,
+    "n_grocery_ends_1mi_prior12m": 0.0,
+    "acs_population": 5168.0,
+    "pop_density_sqmi": 933.8268527393552,
+    "pct_poverty": 0.23989849697442905,
+    "median_hh_income": 48783.0,
+    "pct_no_vehicle": 0.05344295991778006,
+    "pct_snap_hh": 0.19424460431654678,
+    "pct_renter": 0.4028776978417266,
+    "pct_age_65_plus": 0.18188854489164086,
+    "unemployment_rate": 0.07149240393208221,
+    "dist_other_grocery_jan1_mi": 0.17388249998788136
+   },
+   "expected_status": 422,
+   "expected_error": {
+    "loc": [
+     "store_type"
+    ],
+    "reason": "not one of the five grocery store types"
+   },
+   "transformer_behavior": "raises ValueError: store_type must be one of ['Large Grocery Store', 'Medium Grocery Store', 'Small Grocery S"
+  },
+  {
+   "id": "bad2",
+   "description": "cohort year after the reference range",
+   "payload": {
+    "year": 2025,
+    "store_type": "Supermarket",
+    "store_age_years": 3.482546201232033,
+    "auth_date_placeholder": 0.0,
+    "n_prior_spells_same_id": 0.0,
+    "n_prior_ownership_changes": 0.0,
+    "chain_size": 12.0,
+    "n_grocery_05mi": 2.0,
+    "n_grocery_1mi": 2.0,
+    "n_convenience_1mi": 2.0,
+    "convenience_to_grocery_ratio_1mi": 0.6666666666666666,
+    "n_grocery_ends_1mi_prior12m": 0.0,
+    "acs_population": 5168.0,
+    "pop_density_sqmi": 933.8268527393552,
+    "pct_poverty": 0.23989849697442905,
+    "median_hh_income": 48783.0,
+    "pct_no_vehicle": 0.05344295991778006,
+    "pct_snap_hh": 0.19424460431654678,
+    "pct_renter": 0.4028776978417266,
+    "pct_age_65_plus": 0.18188854489164086,
+    "unemployment_rate": 0.07149240393208221,
+    "dist_other_grocery_jan1_mi": 0.17388249998788136
+   },
+   "expected_status": 422,
+   "expected_error": {
+    "loc": [
+     "year"
+    ],
+    "reason": "year must be an integer 2012-2024"
+   },
+   "transformer_behavior": "raises ValueError: no income reference for cohort year(s) [2025]; the reference covers 2012-2024"
+  },
+  {
+   "id": "bad3",
+   "description": "cohort year before the reference range",
+   "payload": {
+    "year": 2011,
+    "store_type": "Supermarket",
+    "store_age_years": 3.482546201232033,
+    "auth_date_placeholder": 0.0,
+    "n_prior_spells_same_id": 0.0,
+    "n_prior_ownership_changes": 0.0,
+    "chain_size": 12.0,
+    "n_grocery_05mi": 2.0,
+    "n_grocery_1mi": 2.0,
+    "n_convenience_1mi": 2.0,
+    "convenience_to_grocery_ratio_1mi": 0.6666666666666666,
+    "n_grocery_ends_1mi_prior12m": 0.0,
+    "acs_population": 5168.0,
+    "pop_density_sqmi": 933.8268527393552,
+    "pct_poverty": 0.23989849697442905,
+    "median_hh_income": 48783.0,
+    "pct_no_vehicle": 0.05344295991778006,
+    "pct_snap_hh": 0.19424460431654678,
+    "pct_renter": 0.4028776978417266,
+    "pct_age_65_plus": 0.18188854489164086,
+    "unemployment_rate": 0.07149240393208221,
+    "dist_other_grocery_jan1_mi": 0.17388249998788136
+   },
+   "expected_status": 422,
+   "expected_error": {
+    "loc": [
+     "year"
+    ],
+    "reason": "year must be an integer 2012-2024"
+   },
+   "transformer_behavior": "raises ValueError: no income reference for cohort year(s) [2011]; the reference covers 2012-2024"
+  },
+  {
+   "id": "bad4",
+   "description": "required field missing (chain_size key absent)",
+   "payload": {
+    "year": 2020,
+    "store_type": "Supermarket",
+    "store_age_years": 3.482546201232033,
+    "auth_date_placeholder": 0.0,
+    "n_prior_spells_same_id": 0.0,
+    "n_prior_ownership_changes": 0.0,
+    "n_grocery_05mi": 2.0,
+    "n_grocery_1mi": 2.0,
+    "n_convenience_1mi": 2.0,
+    "convenience_to_grocery_ratio_1mi": 0.6666666666666666,
+    "n_grocery_ends_1mi_prior12m": 0.0,
+    "acs_population": 5168.0,
+    "pop_density_sqmi": 933.8268527393552,
+    "pct_poverty": 0.23989849697442905,
+    "median_hh_income": 48783.0,
+    "pct_no_vehicle": 0.05344295991778006,
+    "pct_snap_hh": 0.19424460431654678,
+    "pct_renter": 0.4028776978417266,
+    "pct_age_65_plus": 0.18188854489164086,
+    "unemployment_rate": 0.07149240393208221,
+    "dist_other_grocery_jan1_mi": 0.17388249998788136
+   },
+   "expected_status": 422,
+   "expected_error": {
+    "loc": [
+     "chain_size"
+    ],
+    "reason": "field required"
+   },
+   "transformer_behavior": "raises ValueError: missing input columns: ['chain_size']"
+  },
+  {
+   "id": "bad5",
+   "description": "negative store age",
+   "payload": {
+    "year": 2020,
+    "store_type": "Supermarket",
+    "store_age_years": -1.5,
+    "auth_date_placeholder": 0.0,
+    "n_prior_spells_same_id": 0.0,
+    "n_prior_ownership_changes": 0.0,
+    "chain_size": 12.0,
+    "n_grocery_05mi": 2.0,
+    "n_grocery_1mi": 2.0,
+    "n_convenience_1mi": 2.0,
+    "convenience_to_grocery_ratio_1mi": 0.6666666666666666,
+    "n_grocery_ends_1mi_prior12m": 0.0,
+    "acs_population": 5168.0,
+    "pop_density_sqmi": 933.8268527393552,
+    "pct_poverty": 0.23989849697442905,
+    "median_hh_income": 48783.0,
+    "pct_no_vehicle": 0.05344295991778006,
+    "pct_snap_hh": 0.19424460431654678,
+    "pct_renter": 0.4028776978417266,
+    "pct_age_65_plus": 0.18188854489164086,
+    "unemployment_rate": 0.07149240393208221,
+    "dist_other_grocery_jan1_mi": 0.17388249998788136
+   },
+   "expected_status": 422,
+   "expected_error": {
+    "loc": [
+     "store_age_years"
+    ],
+    "reason": "must be >= 0"
+   },
+   "transformer_behavior": "accepted silently (no ValueError): only request validation can reject it"
+  },
+  {
+   "id": "bad6",
+   "description": "share above 1",
+   "payload": {
+    "year": 2020,
+    "store_type": "Supermarket",
+    "store_age_years": 3.482546201232033,
+    "auth_date_placeholder": 0.0,
+    "n_prior_spells_same_id": 0.0,
+    "n_prior_ownership_changes": 0.0,
+    "chain_size": 12.0,
+    "n_grocery_05mi": 2.0,
+    "n_grocery_1mi": 2.0,
+    "n_convenience_1mi": 2.0,
+    "convenience_to_grocery_ratio_1mi": 0.6666666666666666,
+    "n_grocery_ends_1mi_prior12m": 0.0,
+    "acs_population": 5168.0,
+    "pop_density_sqmi": 933.8268527393552,
+    "pct_poverty": 1.2,
+    "median_hh_income": 48783.0,
+    "pct_no_vehicle": 0.05344295991778006,
+    "pct_snap_hh": 0.19424460431654678,
+    "pct_renter": 0.4028776978417266,
+    "pct_age_65_plus": 0.18188854489164086,
+    "unemployment_rate": 0.07149240393208221,
+    "dist_other_grocery_jan1_mi": 0.17388249998788136
+   },
+   "expected_status": 422,
+   "expected_error": {
+    "loc": [
+     "pct_poverty"
+    ],
+    "reason": "must be between 0 and 1"
+   },
+   "transformer_behavior": "accepted silently (no ValueError): only request validation can reject it"
+  },
+  {
+   "id": "bad7",
+   "description": "non-numeric value for a numeric field",
+   "payload": {
+    "year": 2020,
+    "store_type": "Supermarket",
+    "store_age_years": 3.482546201232033,
+    "auth_date_placeholder": 0.0,
+    "n_prior_spells_same_id": 0.0,
+    "n_prior_ownership_changes": 0.0,
+    "chain_size": 12.0,
+    "n_grocery_05mi": "abc",
+    "n_grocery_1mi": 2.0,
+    "n_convenience_1mi": 2.0,
+    "convenience_to_grocery_ratio_1mi": 0.6666666666666666,
+    "n_grocery_ends_1mi_prior12m": 0.0,
+    "acs_population": 5168.0,
+    "pop_density_sqmi": 933.8268527393552,
+    "pct_poverty": 0.23989849697442905,
+    "median_hh_income": 48783.0,
+    "pct_no_vehicle": 0.05344295991778006,
+    "pct_snap_hh": 0.19424460431654678,
+    "pct_renter": 0.4028776978417266,
+    "pct_age_65_plus": 0.18188854489164086,
+    "unemployment_rate": 0.07149240393208221,
+    "dist_other_grocery_jan1_mi": 0.17388249998788136
+   },
+   "expected_status": 422,
+   "expected_error": {
+    "loc": [
+     "n_grocery_05mi"
+    ],
+    "reason": "not a valid integer"
+   },
+   "transformer_behavior": "accepted silently (no ValueError): only request validation can reject it"
+  },
+  {
+   "id": "bad8",
+   "description": "null for a field that may not be null",
+   "payload": {
+    "year": 2020,
+    "store_type": "Supermarket",
+    "store_age_years": 3.482546201232033,
+    "auth_date_placeholder": 0.0,
+    "n_prior_spells_same_id": null,
+    "n_prior_ownership_changes": 0.0,
+    "chain_size": 12.0,
+    "n_grocery_05mi": 2.0,
+    "n_grocery_1mi": 2.0,
+    "n_convenience_1mi": 2.0,
+    "convenience_to_grocery_ratio_1mi": 0.6666666666666666,
+    "n_grocery_ends_1mi_prior12m": 0.0,
+    "acs_population": 5168.0,
+    "pop_density_sqmi": 933.8268527393552,
+    "pct_poverty": 0.23989849697442905,
+    "median_hh_income": 48783.0,
+    "pct_no_vehicle": 0.05344295991778006,
+    "pct_snap_hh": 0.19424460431654678,
+    "pct_renter": 0.4028776978417266,
+    "pct_age_65_plus": 0.18188854489164086,
+    "unemployment_rate": 0.07149240393208221,
+    "dist_other_grocery_jan1_mi": 0.17388249998788136
+   },
+   "expected_status": 422,
+   "expected_error": {
+    "loc": [
+     "n_prior_spells_same_id"
+    ],
+    "reason": "may not be null"
+   },
+   "transformer_behavior": "accepted silently (no ValueError): only request validation can reject it"
+  }
  ]
 }

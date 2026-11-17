@@ -14,6 +14,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 from common_model import DOCS  # noqa: E402
 from serving import MODELS  # noqa: E402
+from store_prep import FIELD_RULES  # noqa: E402
 
 # raw input, source and units for each of the 20 model inputs (definitions: docs/data_dictionary.md)
 RAW = {
@@ -44,7 +45,7 @@ def fmt(x, nd=4):
     return "null" if x is None or (isinstance(x, float) and np.isnan(x)) else (f"{x:.{nd}f}" if isinstance(x, float) else str(x))
 
 
-def write(meta, examples, shares, worst_share_diff, d, tr, va, pipe):
+def write(meta, examples, shares, worst_share_diff, d, tr, va, pipe, invalid):
     hgb = pipe[-1]
     F = meta["features"]
     yrs = meta["income_reference_years"]
@@ -163,4 +164,22 @@ def write(meta, examples, shares, worst_share_diff, d, tr, va, pipe):
           "- Discrimination is modest: 2012-2018 model validation PR-AUC 0.149 against a 3.5% exit rate; top-50-per-year precision 25%. Say 'higher risk', not 'will exit'.",
           "- Fairness: dropping the seven tract demographic inputs did not narrow the majority-Black vs majority-White false-positive gap (4.1% vs 1.5% with them, 4.6% vs 1.2% without, validation, top 50 per year); it is plausibly carried by store type and chain size. To be reported on the test set in D6 (`docs/changes_since_d3.md`).",
           "- The 2022-2024 cohorts have never been scored. The refit model's only evaluation is the D6 test run.", ""]
+    L += ["", "## 11. Request validation: 422, never 500", "",
+          "**The API must validate every request with Pydantic before it calls the Pipeline and answer HTTP 422 for invalid input. The transformer's `ValueError` for an unknown cohort year, an unknown or missing `store_type`, or a missing input column must become a 422 through that validation, never a 500.** "
+          "As defence in depth, also wrap the Pipeline call: `except ValueError` -> 422 with the message. A 500 is for genuine server faults only; an unavailable model (failed startup self-check) is a 503.", "",
+          "**The transformer does not range- or type-check numbers.** A negative `store_age_years`, a share above 1 or the string `'abc'` in a numeric field is scored silently (the string becomes missing), so those rules exist only in the request model. "
+          "The rules below are `store_prep.FIELD_RULES` (generate the Pydantic model from it); ranges come from the 2012-2021 store-years (e.g. `chain_size` >= 1 because it counts the store itself; shares max 0.99, income max 249,100 dollars after the 250,001 top-code). "
+          "Every key must be present in the body. `null` is accepted only for the nullable fields (missing in the source data); the others may not be null.", "",
+          "| Field | Kind | Valid values | Null allowed |", "|---|---|---|---|"]
+    for k, r in FIELD_RULES.items():
+        valid = {"category": "one of " + ", ".join(meta["store_type_categories"]), "binary": "0 or 1", "share": "number from 0 to 1"}.get(r["kind"])
+        if valid is None:
+            valid = f"{'integer' if r['kind'] == 'int' else 'number'} >= {r['min']}" + (f" and <= {r['max']}" if "max" in r else "")
+        L.append(f"| `{k}` | {r['kind']} | {valid} | {'yes' if r['nullable'] else 'no'} |")
+    L += ["", "Invalid examples (`invalid_examples` in `docs/model_examples_d4.json`; each must return **422**, and the error should point at the field):", "",
+          "| id | case | expected 422 error on | what the local Pipeline does with it |", "|---|---|---|---|"]
+    for c in invalid:
+        L.append(f"| {c['id']} | {c['description']} | `{'.'.join(c['expected_error']['loc'])}`: {c['expected_error']['reason']} | {c['transformer_behavior']} |")
+    L += ["", "Cases bad1-bad4 are the ones the transformer rejects itself (the API must convert that `ValueError` to 422); bad5-bad8 pass the transformer silently, so only request validation catches them. "
+          "A deployment test should post each payload and assert status 422 (and not 500).", ""]
     (DOCS / "model_spec_d4.md").write_text("\n".join(L), encoding="utf-8")

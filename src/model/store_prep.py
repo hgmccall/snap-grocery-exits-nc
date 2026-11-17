@@ -32,6 +32,36 @@ FEATURES = (
 INPUT_COLUMNS = ("year",) + FEATURES
 INCOME, UNEMP, CAT = "median_hh_income", "unemployment_rate", "store_type"
 
+# Request-validation rules for the API (Pydantic), from the training-data ranges (2012-2021 store-years). StoreFeaturePrep itself rejects only an unknown
+# year, an unknown/missing store_type and missing columns (ValueError); it does NOT range- or type-check numbers (a negative age or a share of 1.2 would
+# be scored silently), so the API must enforce these rules and answer 422 -- see docs/model_spec_d4.md section 11. Every key must be present in a request;
+# `nullable` fields may be null (missing in the source data), the others may not.
+# kind: category | int | float | share (float in [0, 1]) | binary (0 or 1)
+FIELD_RULES = {
+    "year": dict(kind="int", min=2012, max=2024, nullable=False),
+    "store_type": dict(kind="category", nullable=False),
+    "store_age_years": dict(kind="float", min=0, nullable=True),
+    "auth_date_placeholder": dict(kind="binary", nullable=False),
+    "n_prior_spells_same_id": dict(kind="int", min=0, nullable=False),
+    "n_prior_ownership_changes": dict(kind="int", min=0, nullable=False),
+    "chain_size": dict(kind="int", min=1, nullable=False),
+    "n_grocery_05mi": dict(kind="int", min=0, nullable=False),
+    "n_grocery_1mi": dict(kind="int", min=0, nullable=False),
+    "n_convenience_1mi": dict(kind="int", min=0, nullable=False),
+    "convenience_to_grocery_ratio_1mi": dict(kind="float", min=0, nullable=False),
+    "n_grocery_ends_1mi_prior12m": dict(kind="int", min=0, nullable=False),
+    "acs_population": dict(kind="float", min=0, nullable=True),
+    "pop_density_sqmi": dict(kind="float", min=0, nullable=True),
+    "pct_poverty": dict(kind="share", nullable=True),
+    "median_hh_income": dict(kind="float", min=0, nullable=True),
+    "pct_no_vehicle": dict(kind="share", nullable=True),
+    "pct_snap_hh": dict(kind="share", nullable=True),
+    "pct_renter": dict(kind="share", nullable=True),
+    "pct_age_65_plus": dict(kind="share", nullable=True),
+    "unemployment_rate": dict(kind="share", nullable=True),
+    "dist_other_grocery_jan1_mi": dict(kind="float", min=0, nullable=True),   # `context` column: impact score only
+}
+
 
 class StoreFeaturePrep(BaseEstimator, TransformerMixin):
     """See the module docstring."""
