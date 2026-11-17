@@ -100,7 +100,7 @@ $files | Compress-Archive -DestinationPath "$env:TEMP\raw-data-v2.zip" -Force
 gh release create data-v2 "$env:TEMP\raw-data-v2.zip" --repo jrdn-sentosa/snap-grocery-exits-nc --title "Raw data v2" --notes "Raw inputs for the SNAP grocery exits project: a flat zip of the 38 files listed in data/sources.yaml. Verify with: uv run python src/prep/download_raw.py --check"
 ```
 
-The release must be public for graders to download it without credentials. Offline, download the asset by hand and
+The release must be public for anyone to download it without credentials. Offline, download the asset by hand and
 run `uv run python src/prep/download_raw.py --fallback-zip path\to\raw-data-v2.zip`.
 
 ## Reproduce
