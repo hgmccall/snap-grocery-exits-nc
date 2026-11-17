@@ -71,6 +71,7 @@ and verifies the SHA-256 of every file. It exits non-zero on any mismatch and ne
 | TIGER/Line tract shapefile, 2010, NC | `tl_2010_37_tract10.*` (5 files) | U.S. Census Bureau, [TIGER/Line](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html) | Script (zip) |
 | TIGER/Line tract shapefile, 2020, NC | `tl_2020_37_tract.*` (7 files) | same page | Script (zip) |
 | Proximity to a Grocery Store, Mecklenburg neighborhoods (Quality of Life Explorer) | `Proximity to a Grocery Store.csv` | [Quality of Life Explorer](https://explore.charlottenc.gov/), variable [m45](https://maps.mecklenburgcountync.gov/qol/data/meta/m45.html) | **Manual export, no stable URL**; Release fallback only |
+| BLS Local Area Unemployment Statistics (LAUS), county annual averages 2006-2022 | `bls_laus/laucnty06.xlsx` ... `laucnty22.xlsx` (17 files) | U.S. Bureau of Labor Statistics, [LAUS county data](https://www.bls.gov/lau/tables.htm) | **Manual download, no stable URL**; Release fallback only |
 
 Which files are read:
 - **The pipeline (00-05)** reads the SNAP retailer CSV, both RUCA tract files, both tract shapefiles and the ACS tables below.
@@ -93,7 +94,7 @@ Census API into `data/raw/acs/` and records each vintage's release date and sour
 
 ### Fallback release (maintainers)
 
-The QOL export has no stable URL and any official file can be re-issued upstream, so a `data-v2` release (v1 lacked the BLS files) holds a flat
+The QOL export and the BLS files have no stable URL and any official file can be re-issued upstream, so a `data-v2` release (v1 lacked the BLS files) holds a flat
 zip of every file in the manifest. The repository must be pushed first (`git push -u origin main`); then, from PowerShell
 at the repository root:
 
